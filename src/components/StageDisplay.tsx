@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { TimerState, getTimerColorStatus } from '../types/timer';
+import { TimerState, getTimerColorStatus, getActiveTimerColor, DEFAULT_THEME_CONFIG } from '../types/timer';
+import { BACKGROUND_STYLES } from '../data/themes';
 import { formatTimeDisplay } from '../hooks/useTimerSync';
 import { Maximize2, Minimize2, EyeOff, Radio, Clock, ShieldAlert } from 'lucide-react';
 
@@ -18,6 +19,8 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const [controlsVisible, setControlsVisible] = useState(false);
+
+  const theme = state.themeConfig || DEFAULT_THEME_CONFIG;
 
   // Time-of-day wall clock for the stage
   useEffect(() => {
@@ -66,32 +69,30 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const colorStatus = getTimerColorStatus(state.remainingSeconds);
+  const colorStatus = getTimerColorStatus(
+    state.remainingSeconds,
+    theme.warning1Seconds ?? 60,
+    theme.warning2Seconds ?? 30
+  );
+  const activeColor = getActiveTimerColor(colorStatus, theme);
   const { formatted, isNegative } = formatTimeDisplay(state.remainingSeconds);
   const isTimeUp = state.remainingSeconds <= 0;
 
-  // Determine color classes strictly following user requirements:
-  // - Countdown: GREEN
-  // - 1 min to end (<= 60s): AMBER
-  // - 30 sec to end (<= 30s): RED
-  // - When time is over: DISPLAY Time-up in RED
-  let colorClass = 'text-emerald-400';
-  let glowClass = 'drop-shadow-[0_0_35px_rgba(52,211,153,0.35)]';
   let statusLabel = 'COUNTING DOWN';
-
   if (colorStatus === 'amber') {
-    colorClass = 'text-amber-400';
-    glowClass = 'drop-shadow-[0_0_35px_rgba(251,191,36,0.4)]';
-    statusLabel = '1 MINUTE WARNING';
+    statusLabel = `${theme.warning1Seconds ?? 60}S WARNING`;
   } else if (colorStatus === 'red') {
-    colorClass = 'text-red-500';
-    glowClass = 'drop-shadow-[0_0_40px_rgba(239,68,68,0.5)]';
-    statusLabel = '30 SECONDS LEFT';
+    statusLabel = `${theme.warning2Seconds ?? 30}S LEFT`;
   } else if (colorStatus === 'time-up') {
-    colorClass = 'text-red-500';
-    glowClass = 'drop-shadow-[0_0_50px_rgba(239,68,68,0.7)] animate-pulse';
     statusLabel = "TIME'S UP";
   }
+
+  const fontFamilyStyle =
+    theme.fontFamily === 'digital'
+      ? "'Courier New', monospace"
+      : theme.fontFamily === 'sans'
+      ? "'Plus Jakarta Sans', sans-serif"
+      : "'JetBrains Mono', monospace";
 
   // If Blackout is active
   if (state.isBlackout) {
@@ -121,21 +122,20 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
 
   return (
     <div
-      className="relative w-full h-full min-h-screen bg-neutral-950 text-white flex flex-col justify-between p-6 md:p-10 select-none overflow-hidden font-sans"
+      className={`relative w-full h-full min-h-screen ${
+        BACKGROUND_STYLES[theme.backgroundStyle] || 'bg-black text-white'
+      } flex flex-col justify-between p-6 md:p-10 select-none overflow-hidden font-sans`}
       onMouseMove={() => {
         setControlsVisible(true);
       }}
       onMouseLeave={() => setControlsVisible(false)}
     >
-      {/* Background subtle stage glow */}
+      {/* Dynamic radial glow centered on screen */}
       <div
-        className={`absolute inset-0 pointer-events-none opacity-20 transition-colors duration-1000 ${
-          colorStatus === 'green'
-            ? 'bg-radial-[circle_at_center,_var(--tw-gradient-stops)] from-emerald-900/40 via-transparent to-transparent'
-            : colorStatus === 'amber'
-            ? 'bg-radial-[circle_at_center,_var(--tw-gradient-stops)] from-amber-900/40 via-transparent to-transparent'
-            : 'bg-radial-[circle_at_center,_var(--tw-gradient-stops)] from-red-950/60 via-transparent to-transparent'
-        }`}
+        className="absolute inset-0 pointer-events-none opacity-30 transition-all duration-1000"
+        style={{
+          background: `radial-gradient(circle at center, ${activeColor}22 0%, transparent 70%)`,
+        }}
       />
 
       {/* Top Bar: Current Program & Wall Clock */}
@@ -148,41 +148,42 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
             </span>
             <span className="text-neutral-600">·</span>
             <span
-              className={`text-xs font-semibold uppercase tracking-wider ${
-                colorStatus === 'green'
-                  ? 'text-emerald-400'
-                  : colorStatus === 'amber'
-                  ? 'text-amber-400'
-                  : 'text-red-400'
-              }`}
+              className="text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
+              style={{ color: activeColor }}
             >
               {statusLabel}
             </span>
           </div>
-          <h1 className="text-xl md:text-3xl font-bold text-neutral-100 tracking-tight mt-0.5 truncate max-w-xl">
-            {state.title || 'Church Service'}
-          </h1>
-          {state.speaker && (
-            <p className="text-sm md:text-base text-neutral-400 mt-0.5">
-              Speaker: <span className="text-neutral-200 font-medium">{state.speaker}</span>
-            </p>
+          {theme.showSpeaker !== false && (
+            <>
+              <h1 className="text-xl md:text-3xl font-bold text-neutral-100 tracking-tight mt-0.5 truncate max-w-xl">
+                {state.title || 'Church Service'}
+              </h1>
+              {state.speaker && (
+                <p className="text-sm md:text-base text-neutral-400 mt-0.5">
+                  Speaker: <span className="text-neutral-200 font-medium">{state.speaker}</span>
+                </p>
+              )}
+            </>
           )}
         </div>
 
         {/* Right: Wall Clock & Online Status */}
         <div className="flex items-center gap-6 text-right">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="text-xs uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" /> Sanctuary Time
-            </span>
-            <span className="font-mono text-xl md:text-2xl font-bold text-neutral-200 tabular-nums">
-              {currentTimeStr}
-            </span>
-          </div>
+          {theme.showClock !== false && (
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-xs uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Sanctuary Time
+              </span>
+              <span className="font-mono text-xl md:text-2xl font-bold text-neutral-200 tabular-nums">
+                {currentTimeStr}
+              </span>
+            </div>
+          )}
 
           {/* Sync indicator */}
           <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-900 border border-neutral-800 text-xs font-medium text-neutral-300"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-900/80 border border-neutral-800 text-xs font-medium text-neutral-300"
             title={connected ? 'Live Sync Active' : 'Connecting to Server...'}
           >
             <Radio
@@ -201,21 +202,31 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Exact user requirement: WHEN THE TIME IS OVER, DISPLAY Time-up in RED */
           <div className="text-center animate-bounce-subtle">
             <div
-              className={`font-mono text-[clamp(4.5rem,14vw,14rem)] font-extrabold tracking-tight leading-none ${colorClass} ${glowClass}`}
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="text-[clamp(4.5rem,14vw,14rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
+              style={{
+                color: activeColor,
+                fontFamily: fontFamilyStyle,
+                filter: `drop-shadow(0 0 45px ${activeColor}70)`,
+              }}
             >
-              Time-up
+              {theme.timeUpText || 'Time-up'}
             </div>
 
             {/* If overtime is enabled, display the overtime count below */}
             {state.overtimeEnabled && (
               <div className="mt-4 md:mt-8 flex items-center justify-center gap-3">
-                <span className="text-sm md:text-xl uppercase tracking-widest text-red-400/80 font-semibold">
+                <span
+                  className="text-sm md:text-xl uppercase tracking-widest font-semibold"
+                  style={{ color: `${activeColor}bb` }}
+                >
                   Overtime Elapsed:
                 </span>
                 <span
-                  className="font-mono text-2xl md:text-5xl font-bold text-red-400 tabular-nums"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="text-2xl md:text-5xl font-bold tabular-nums"
+                  style={{
+                    color: activeColor,
+                    fontFamily: fontFamilyStyle,
+                  }}
                 >
                   {formatted}
                 </span>
@@ -223,11 +234,15 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
             )}
           </div>
         ) : (
-          /* Active Countdown: GREEN (>60s), AMBER (<=60s), RED (<=30s) */
+          /* Active Countdown: GREEN, AMBER, RED transitions */
           <div className="text-center flex flex-col items-center">
             <div
-              className={`font-mono text-[clamp(5.5rem,19vw,18rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all ${colorClass} ${glowClass}`}
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="text-[clamp(5.5rem,19vw,18rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
+              style={{
+                color: activeColor,
+                fontFamily: fontFamilyStyle,
+                filter: `drop-shadow(0 0 35px ${activeColor}40)`,
+              }}
             >
               {formatted}
             </div>

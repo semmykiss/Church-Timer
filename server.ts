@@ -14,6 +14,38 @@ interface StageMessage {
   createdAt: number;
 }
 
+interface TimerThemeConfig {
+  themeId: string;
+  themeName: string;
+  backgroundStyle: 'pitch-black' | 'midnight-navy' | 'deep-slate' | 'charcoal-bronze' | 'dark-purple';
+  countdownColor: string;
+  warning1Color: string;
+  warning2Color: string;
+  timeUpColor: string;
+  timeUpText: string;
+  warning1Seconds: number;
+  warning2Seconds: number;
+  showClock: boolean;
+  showSpeaker: boolean;
+  fontFamily: 'mono' | 'sans' | 'digital';
+}
+
+const DEFAULT_THEME_CONFIG: TimerThemeConfig = {
+  themeId: 'classic',
+  themeName: 'Classic Sanctuary',
+  backgroundStyle: 'pitch-black',
+  countdownColor: '#10b981', // green
+  warning1Color: '#f59e0b',  // amber
+  warning2Color: '#ef4444',  // red
+  timeUpColor: '#ef4444',    // red
+  timeUpText: 'Time-up',
+  warning1Seconds: 60,
+  warning2Seconds: 30,
+  showClock: true,
+  showSpeaker: true,
+  fontFamily: 'mono',
+};
+
 interface ServerTimerState {
   roomId: string;
   title: string;
@@ -28,6 +60,7 @@ interface ServerTimerState {
   overtimeEnabled: boolean;
   soundAlertsEnabled: boolean;
   clockModeEnabled: boolean;
+  themeConfig: TimerThemeConfig;
   version: number;
 }
 
@@ -53,6 +86,7 @@ function getOrCreateRoom(roomId: string): ServerTimerState {
       overtimeEnabled: true,
       soundAlertsEnabled: true,
       clockModeEnabled: true,
+      themeConfig: { ...DEFAULT_THEME_CONFIG },
       version: 1,
     };
     rooms.set(normalizedId, room);
@@ -245,6 +279,17 @@ async function startServer() {
         room.overtimeEnabled = action.enabled !== undefined ? Boolean(action.enabled) : !room.overtimeEnabled;
         room.lastUpdatedAt = now;
         room.version++;
+        break;
+      }
+      case 'UPDATE_THEME': {
+        if (action.themeConfig && typeof action.themeConfig === 'object') {
+          room.themeConfig = {
+            ...room.themeConfig,
+            ...action.themeConfig,
+          };
+          room.lastUpdatedAt = now;
+          room.version++;
+        }
         break;
       }
       default:

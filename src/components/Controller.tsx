@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
-import { TimerState, ChurchPreset, getTimerColorStatus } from '../types/timer';
+import {
+  TimerState,
+  ChurchPreset,
+  getTimerColorStatus,
+  getActiveTimerColor,
+  DEFAULT_THEME_CONFIG,
+} from '../types/timer';
 import { CHURCH_SERVICE_TEMPLATES } from '../data/churchTemplates';
+import { BACKGROUND_STYLES } from '../data/themes';
 import { formatTimeDisplay } from '../hooks/useTimerSync';
 import { playChime } from '../utils/audio';
 import {
@@ -20,6 +27,10 @@ import {
   Send,
   Trash2,
   ExternalLink,
+  Bookmark,
+  BookmarkPlus,
+  Check,
+  Palette,
 } from 'lucide-react';
 
 interface ControllerProps {
@@ -38,6 +49,7 @@ interface ControllerProps {
   onToggleOvertime: (enabled?: boolean) => void;
   onSetTitleAndSpeaker: (title: string, speaker?: string) => void;
   onOpenShareModal: () => void;
+  onOpenThemeModal: () => void;
 }
 
 export const Controller: React.FC<ControllerProps> = ({
@@ -56,8 +68,53 @@ export const Controller: React.FC<ControllerProps> = ({
   onToggleOvertime,
   onSetTitleAndSpeaker,
   onOpenShareModal,
+  onOpenThemeModal,
 }) => {
-  const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
+  const CUSTOM_STORAGE_KEY = 'sanctuary_custom_presets';
+
+  // Load custom presets from localStorage or defaults
+  const [customPresets, setCustomPresets] = useState<ChurchPreset[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(CUSTOM_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return [
+      {
+        id: 'cp-pastor-exhortation',
+        title: "Pastor's Exhortation",
+        speaker: 'Visiting Minister',
+        durationMinutes: 18,
+        durationSeconds: 0,
+        category: 'word',
+      },
+      {
+        id: 'cp-baby-dedication',
+        title: 'Baby Dedication Ceremony',
+        speaker: 'Pastoral Staff',
+        durationMinutes: 12,
+        durationSeconds: 30,
+        category: 'prayer',
+      },
+      {
+        id: 'cp-extended-worship',
+        title: 'Extended Prophetic Worship',
+        speaker: 'Worship Team',
+        durationMinutes: 30,
+        durationSeconds: 0,
+        category: 'worship',
+      },
+    ];
+  });
+
   const [customMinutes, setCustomMinutes] = useState(30);
   const [customSeconds, setCustomSeconds] = useState(0);
   const [customTitle, setCustomTitle] = useState(state.title || 'The Sermon / Word');
@@ -65,10 +122,99 @@ export const Controller: React.FC<ControllerProps> = ({
   const [messageInput, setMessageInput] = useState('');
   const [flashAlert, setFlashAlert] = useState(false);
 
-  const activeTemplate = CHURCH_SERVICE_TEMPLATES[selectedTemplateIndex] || CHURCH_SERVICE_TEMPLATES[0];
-  const colorStatus = getTimerColorStatus(state.remainingSeconds);
+  // Track active tab: either index of built-in templates or 'custom' for user saved presets
+  const [activeTab, setActiveTab] = useState<number | 'custom'>('custom');
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  // Sync custom presets to localStorage
+  const persistCustomPresets = (updated: ChurchPreset[]) => {
+    setCustomPresets(updated);
+    try {
+      localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveCustomPreset = () => {
+    const totalSec = customMinutes * 60 + customSeconds;
+    if (totalSec <= 0) return;
+
+    const trimmedTitle = customTitle.trim() || `${customMinutes}m ${customSeconds > 0 ? customSeconds + 's' : ''} Timer`;
+    const trimmedSpeaker = customSpeaker.trim() || undefined;
+
+    const newPreset: ChurchPreset = {
+      id: `custom-${Date.now()}`,
+      title: trimmedTitle,
+      speaker: trimmedSpeaker,
+      durationMinutes: customMinutes,
+      durationSeconds: customSeconds,
+      category: 'custom',
+    };
+
+    const updated = [newPreset, ...customPresets];
+    persistCustomPresets(updated);
+    setActiveTab('custom');
+    setSaveSuccessMessage(`"${trimmedTitle}" saved to custom presets!`);
+    setTimeout(() => setSaveSuccessMessage(null), 3000);
+  };
+
+  const handleSaveCurrentTimerAsPreset = () => {
+    const totalSec = state.totalDurationSeconds;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    const trimmedTitle = state.title || 'Current Segment';
+    const trimmedSpeaker = state.speaker || undefined;
+
+    const newPreset: ChurchPreset = {
+      id: `custom-${Date.now()}`,
+      title: trimmedTitle,
+      speaker: trimmedSpeaker,
+      durationMinutes: mins,
+      durationSeconds: secs,
+      category: 'custom',
+    };
+
+    const updated = [newPreset, ...customPresets];
+    persistCustomPresets(updated);
+    setActiveTab('custom');
+    setSaveSuccessMessage(`Current timer "${trimmedTitle}" saved as preset!`);
+    setTimeout(() => setSaveSuccessMessage(null), 3000);
+  };
+
+  const handleDeleteCustomPreset = (id: string, title: string) => {
+    const updated = customPresets.filter((p) => p.id !== id);
+    persistCustomPresets(updated);
+    setSaveSuccessMessage(`Removed "${title}"`);
+    setTimeout(() => setSaveSuccessMessage(null), 2500);
+  };
+
+  const activeTemplate = typeof activeTab === 'number' ? (CHURCH_SERVICE_TEMPLATES[activeTab] || CHURCH_SERVICE_TEMPLATES[0]) : null;
+  const theme = state.themeConfig || DEFAULT_THEME_CONFIG;
+  const colorStatus = getTimerColorStatus(
+    state.remainingSeconds,
+    theme.warning1Seconds ?? 60,
+    theme.warning2Seconds ?? 30
+  );
+  const activeColor = getActiveTimerColor(colorStatus, theme);
   const { formatted, isNegative } = formatTimeDisplay(state.remainingSeconds);
   const isTimeUp = state.remainingSeconds <= 0;
+
+  let statusText = `COUNTING DOWN (${theme.themeName || 'ACTIVE'})`;
+  if (colorStatus === 'amber') {
+    statusText = `${theme.warning1Seconds ?? 60}S WARNING`;
+  } else if (colorStatus === 'red') {
+    statusText = `${theme.warning2Seconds ?? 30}S LEFT`;
+  } else if (colorStatus === 'time-up') {
+    statusText = theme.timeUpText || "TIME'S UP";
+  }
+
+  const fontFamilyStyle =
+    theme.fontFamily === 'digital'
+      ? "'Courier New', monospace"
+      : theme.fontFamily === 'sans'
+      ? "'Plus Jakarta Sans', sans-serif"
+      : "'JetBrains Mono', monospace";
 
   const handleCustomApply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,25 +244,6 @@ export const Controller: React.FC<ControllerProps> = ({
     );
   };
 
-  // Color mappings
-  let previewTextColor = 'text-emerald-400';
-  let previewBgGlow = 'bg-emerald-950/20';
-  let statusText = 'COUNTING DOWN (GREEN)';
-
-  if (colorStatus === 'amber') {
-    previewTextColor = 'text-amber-400';
-    previewBgGlow = 'bg-amber-950/20';
-    statusText = '1 MIN TO END (AMBER)';
-  } else if (colorStatus === 'red') {
-    previewTextColor = 'text-red-500';
-    previewBgGlow = 'bg-red-950/30';
-    statusText = '30 SEC TO END (RED)';
-  } else if (colorStatus === 'time-up') {
-    previewTextColor = 'text-red-500';
-    previewBgGlow = 'bg-red-950/40 animate-pulse';
-    statusText = "TIME-UP (RED)";
-  }
-
   return (
     <div className="space-y-6 pb-12">
       {/* Top Banner Notice: Online Sync & Second Screen status */}
@@ -132,12 +259,20 @@ export const Controller: React.FC<ControllerProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Any screen with this room URL syncs in real-time. Digits change: Green → 1 min Amber → 30s Red → Time-up Red.
+              Active Theme: <span className="text-emerald-400 font-medium">{theme.themeName || 'Classic Sanctuary'}</span> · Warning at {theme.warning1Seconds}s & {theme.warning2Seconds}s.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={onOpenThemeModal}
+            className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700/80 flex items-center justify-center gap-1.5 transition-colors"
+            title="Customize theme, stage colors, and thresholds"
+          >
+            <Palette className="w-4 h-4 text-emerald-400" />
+            <span>Theme & Colors</span>
+          </button>
           <button
             onClick={onOpenShareModal}
             className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700/80 flex items-center justify-center gap-1.5 transition-colors"
@@ -172,6 +307,14 @@ export const Controller: React.FC<ControllerProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={onOpenThemeModal}
+                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors mr-2"
+                  title="Change Theme & Stage Colors"
+                >
+                  <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">{theme.themeName || 'Theme'}</span>
+                </button>
+                <button
                   onClick={handleOpenSecondScreen}
                   className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
                   title="Open dedicated popup window for 2nd monitor"
@@ -184,7 +327,9 @@ export const Controller: React.FC<ControllerProps> = ({
 
             {/* Simulated Stage Screen Surface */}
             <div
-              className={`p-6 sm:p-10 bg-black text-center flex flex-col items-center justify-center min-h-[290px] sm:min-h-[340px] relative transition-colors duration-500 ${previewBgGlow}`}
+              className={`p-6 sm:p-10 text-center flex flex-col items-center justify-center min-h-[290px] sm:min-h-[340px] relative transition-colors duration-500 ${
+                BACKGROUND_STYLES[theme.backgroundStyle] || 'bg-black text-white'
+              }`}
             >
               {state.isBlackout ? (
                 <div className="space-y-2 opacity-50">
@@ -211,21 +356,32 @@ export const Controller: React.FC<ControllerProps> = ({
                   {isTimeUp ? (
                     <div className="space-y-2 animate-bounce-subtle">
                       <div
-                        className={`font-mono text-6xl sm:text-8xl font-black tracking-tight leading-none ${previewTextColor}`}
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        className="text-6xl sm:text-8xl font-black tracking-tight leading-none transition-colors duration-300"
+                        style={{
+                          color: activeColor,
+                          fontFamily: fontFamilyStyle,
+                          filter: `drop-shadow(0 0 30px ${activeColor}70)`,
+                        }}
                       >
-                        Time-up
+                        {theme.timeUpText || 'Time-up'}
                       </div>
                       {state.overtimeEnabled && (
-                        <div className="text-sm sm:text-lg text-red-400 font-mono font-bold">
+                        <div
+                          className="text-sm sm:text-lg font-mono font-bold"
+                          style={{ color: `${activeColor}dd` }}
+                        >
                           Overtime: {formatted}
                         </div>
                       )}
                     </div>
                   ) : (
                     <div
-                      className={`font-mono text-7xl sm:text-9xl font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-300 ${previewTextColor}`}
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      className="text-7xl sm:text-9xl font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-300"
+                      style={{
+                        color: activeColor,
+                        fontFamily: fontFamilyStyle,
+                        filter: `drop-shadow(0 0 25px ${activeColor}40)`,
+                      }}
                     >
                       {formatted}
                     </div>
@@ -271,6 +427,15 @@ export const Controller: React.FC<ControllerProps> = ({
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Reset</span>
+                  </button>
+
+                  <button
+                    onClick={handleSaveCurrentTimerAsPreset}
+                    className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm rounded-lg flex items-center gap-1.5 transition-colors border border-slate-700/60"
+                    title="Save currently loaded timer length and title as a custom preset"
+                  >
+                    <BookmarkPlus className="w-4 h-4 text-emerald-400" />
+                    <span className="hidden sm:inline">Save as Preset</span>
                   </button>
                 </div>
 
@@ -432,23 +597,23 @@ export const Controller: React.FC<ControllerProps> = ({
 
         {/* Right Column: Church Service Order-of-Service & Custom Countdown (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Order of Service / Run-Sheet Card */}
+          {/* Order of Service / Presets Card */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-white">Church Service Schedule</h3>
-                <p className="text-xs text-slate-400 mt-0.5">1-click queue segments for Sunday, Midweek, etc.</p>
+                <h3 className="text-sm font-semibold text-white">Church Service Schedule & Presets</h3>
+                <p className="text-xs text-slate-400 mt-0.5">1-click queue segments or load custom saved lengths.</p>
               </div>
             </div>
 
-            {/* Template Selector Segmented Control */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800">
+            {/* Template & Custom Presets Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800">
               {CHURCH_SERVICE_TEMPLATES.map((tmpl, idx) => (
                 <button
                   key={tmpl.id}
-                  onClick={() => setSelectedTemplateIndex(idx)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md text-left transition-colors truncate ${
-                    selectedTemplateIndex === idx
+                  onClick={() => setActiveTab(idx)}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-md text-center transition-colors truncate ${
+                    activeTab === idx
                       ? 'bg-slate-800 text-white shadow-sm border border-slate-700/60'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -456,58 +621,156 @@ export const Controller: React.FC<ControllerProps> = ({
                   {tmpl.name}
                 </button>
               ))}
+              <button
+                onClick={() => setActiveTab('custom')}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-md text-center transition-colors truncate flex items-center justify-center gap-1.5 ${
+                  activeTab === 'custom'
+                    ? 'bg-emerald-950/80 text-emerald-300 shadow-sm border border-emerald-700/80'
+                    : 'text-emerald-400 hover:text-emerald-300'
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                <span>My Saved Presets ({customPresets.length})</span>
+              </button>
             </div>
 
-            {/* List of items in current template */}
-            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-              {activeTemplate.items.map((item, idx) => {
-                const isCurrent = state.title === item.title;
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
-                      isCurrent
-                        ? 'bg-emerald-950/30 border-emerald-800/80 text-white'
-                        : 'bg-slate-950 border-slate-800/80 hover:border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 font-mono">0{idx + 1}.</span>
-                        <h4 className="text-xs font-semibold truncate text-slate-200">{item.title}</h4>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                        <span>{item.durationMinutes} min</span>
-                        {item.speaker && (
-                          <>
-                            <span>·</span>
-                            <span className="truncate">{item.speaker}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+            {/* Notification Banner when preset is saved or deleted */}
+            {saveSuccessMessage && (
+              <div className="px-3.5 py-2 bg-emerald-950/50 border border-emerald-800/80 rounded-lg text-emerald-300 text-xs flex items-center justify-between transition-all">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{saveSuccessMessage}</span>
+                </div>
+                <button
+                  onClick={() => setSaveSuccessMessage(null)}
+                  className="text-emerald-400/70 hover:text-emerald-200 text-[10px]"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
-                    <button
-                      onClick={() => onLoadPreset(item)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ${
+            {/* List of items */}
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              {activeTab === 'custom' ? (
+                /* Custom Saved Presets list */
+                customPresets.length === 0 ? (
+                  <div className="p-6 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
+                    <BookmarkPlus className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-xs font-medium text-slate-300">No custom presets saved yet</p>
+                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                      Use the &ldquo;Custom Countdown Configuration&rdquo; form below to save custom durations (e.g., Guest Preacher 20m, Baby Dedication 12m) for fast 1-click loading.
+                    </p>
+                  </div>
+                ) : (
+                  customPresets.map((item, idx) => {
+                    const totalSec = (item.durationMinutes || 0) * 60 + (item.durationSeconds || 0);
+                    const isCurrent = state.totalDurationSeconds === totalSec && state.title === item.title;
+                    const durationLabel = item.durationSeconds && item.durationSeconds > 0
+                      ? `${item.durationMinutes}m ${item.durationSeconds}s`
+                      : `${item.durationMinutes} min`;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
+                          isCurrent
+                            ? 'bg-emerald-950/30 border-emerald-800/80 text-white'
+                            : 'bg-slate-950 border-slate-800/80 hover:border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-emerald-400/80 font-mono">#{idx + 1}</span>
+                            <h4 className="text-xs font-semibold truncate text-slate-200">{item.title}</h4>
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                            <span className="text-emerald-400 font-medium">{durationLabel}</span>
+                            {item.speaker && (
+                              <>
+                                <span>·</span>
+                                <span className="truncate">{item.speaker}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => onLoadPreset(item)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                              isCurrent
+                                ? 'bg-emerald-600 text-white font-semibold'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/60'
+                            }`}
+                          >
+                            {isCurrent ? 'Active on Stage' : 'Load Preset'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCustomPreset(item.id, item.title)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+                            title="Delete this saved preset"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : activeTemplate ? (
+                /* Built-in template items */
+                activeTemplate.items.map((item, idx) => {
+                  const isCurrent = state.title === item.title;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
                         isCurrent
-                          ? 'bg-emerald-600 text-white font-semibold'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/60'
+                          ? 'bg-emerald-950/30 border-emerald-800/80 text-white'
+                          : 'bg-slate-950 border-slate-800/80 hover:border-slate-700 text-slate-300'
                       }`}
                     >
-                      {isCurrent ? 'Queued' : 'Load Segment'}
-                    </button>
-                  </div>
-                );
-              })}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 font-mono">0{idx + 1}.</span>
+                          <h4 className="text-xs font-semibold truncate text-slate-200">{item.title}</h4>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                          <span>{item.durationMinutes} min</span>
+                          {item.speaker && (
+                            <>
+                              <span>·</span>
+                              <span className="truncate">{item.speaker}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onLoadPreset(item)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ${
+                          isCurrent
+                            ? 'bg-emerald-600 text-white font-semibold'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/60'
+                        }`}
+                      >
+                        {isCurrent ? 'Queued' : 'Load Segment'}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : null}
             </div>
           </div>
 
           {/* Custom Duration & Title Setup Card */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-white">Custom Countdown Configuration</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Set any custom duration, title, and speaker.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Custom Countdown Configuration</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Set any custom duration, title, and speaker.</p>
+              </div>
             </div>
 
             <form onSubmit={handleCustomApply} className="space-y-3">
@@ -558,43 +821,64 @@ export const Controller: React.FC<ControllerProps> = ({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors shadow-md mt-2"
-              >
-                Apply Custom Timer to Stage
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Apply to Stage</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCustomPreset}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg transition-colors border border-slate-700/80 flex items-center justify-center gap-1.5"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Save as Preset</span>
+                </button>
+              </div>
             </form>
           </div>
 
           {/* Church Stage Color Rules Explainer */}
           <div className="p-4 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300 uppercase tracking-wider block">
-              Active Stage Color Thresholds:
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-300 uppercase tracking-wider block">
+                Active Stage Color Thresholds:
+              </span>
+              <button
+                type="button"
+                onClick={onOpenThemeModal}
+                className="text-emerald-400 hover:text-emerald-300 text-[11px] underline underline-offset-2 flex items-center gap-1"
+              >
+                <Palette className="w-3 h-3" />
+                <span>Change Colors</span>
+              </button>
+            </div>
             <ul className="space-y-1.5 pl-1">
               <li className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: theme.countdownColor }} />
                 <span>
-                  <strong className="text-emerald-400">Green:</strong> Normal countdown while &gt; 60 seconds
+                  <strong style={{ color: theme.countdownColor }}>Normal:</strong> Active countdown while &gt; {theme.warning1Seconds}s
                 </span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: theme.warning1Color }} />
                 <span>
-                  <strong className="text-amber-400">Amber:</strong> 1 minute (60s) to the end of time
+                  <strong style={{ color: theme.warning1Color }}>Warning 1:</strong> Reaching {theme.warning1Seconds} seconds to end
                 </span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: theme.warning2Color }} />
                 <span>
-                  <strong className="text-red-400">Red:</strong> 30 seconds to the end of time
+                  <strong style={{ color: theme.warning2Color }}>Warning 2:</strong> Reaching {theme.warning2Seconds} seconds to end
                 </span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-600 shrink-0" />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: theme.timeUpColor }} />
                 <span>
-                  <strong className="text-red-400">Time-up:</strong> Displayed prominently in bold Red
+                  <strong style={{ color: theme.timeUpColor }}>Expired:</strong> Displays &ldquo;{theme.timeUpText || 'Time-up'}&rdquo; in bold
                 </span>
               </li>
             </ul>

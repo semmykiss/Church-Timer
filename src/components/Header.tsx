@@ -6,6 +6,7 @@ interface HeaderProps {
   onSelectView: (view: 'controller' | 'stage') => void;
   onOpenStageScreen: () => void;
   onOpenShareModal: () => void;
+  onOpenThemeModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -13,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectView,
   onOpenStageScreen,
   onOpenShareModal,
+  onOpenThemeModal,
 }) => {
   return (
     <header className="flex items-center justify-between gap-8 px-6 py-4 border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-30">
@@ -49,6 +51,12 @@ export const Header: React.FC<HeaderProps> = ({
           className="text-slate-400 hover:text-white transition-colors whitespace-nowrap shrink-0"
         >
           Online URLs
+        </button>
+        <button
+          onClick={onOpenThemeModal}
+          className="text-slate-400 hover:text-white transition-colors whitespace-nowrap shrink-0"
+        >
+          Theme & Colors
         </button>
       </nav>
 

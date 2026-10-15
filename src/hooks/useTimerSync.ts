@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TimerState, TimerAction, getTimerColorStatus, TimerColorStatus, ChurchPreset } from '../types/timer';
+import {
+  TimerState,
+  TimerAction,
+  getTimerColorStatus,
+  TimerColorStatus,
+  ChurchPreset,
+  TimerThemeConfig,
+  DEFAULT_THEME_CONFIG,
+} from '../types/timer';
 import { playChime } from '../utils/audio';
 
 const DEFAULT_STATE: TimerState = {
@@ -16,6 +24,7 @@ const DEFAULT_STATE: TimerState = {
   overtimeEnabled: true,
   soundAlertsEnabled: true,
   clockModeEnabled: true,
+  themeConfig: { ...DEFAULT_THEME_CONFIG },
   version: 1,
 };
 
@@ -156,13 +165,15 @@ export function useTimerSync(roomId: string = 'main') {
         if (!prev.isRunning || !prev.endsAt) return prev;
         const currentRemaining = Math.round((prev.endsAt - Date.now()) / 1000);
 
-        // Sound alert triggers
+        // Sound alert triggers with customizable threshold support
         if (prev.soundAlertsEnabled) {
-          if (currentRemaining <= 60 && currentRemaining > 30 && !chimeTrackerRef.current.amber) {
+          const w1 = prev.themeConfig?.warning1Seconds ?? 60;
+          const w2 = prev.themeConfig?.warning2Seconds ?? 30;
+          if (currentRemaining <= w1 && currentRemaining > w2 && !chimeTrackerRef.current.amber) {
             playChime('amber');
             chimeTrackerRef.current.amber = true;
           }
-          if (currentRemaining <= 30 && currentRemaining > 0 && !chimeTrackerRef.current.red) {
+          if (currentRemaining <= w2 && currentRemaining > 0 && !chimeTrackerRef.current.red) {
             playChime('red');
             chimeTrackerRef.current.red = true;
           }
@@ -269,6 +280,12 @@ export function useTimerSync(roomId: string = 'main') {
           case 'TOGGLE_OVERTIME':
             updated.overtimeEnabled = action.enabled !== undefined ? action.enabled : !prev.overtimeEnabled;
             break;
+          case 'UPDATE_THEME':
+            updated.themeConfig = {
+              ...prev.themeConfig,
+              ...action.themeConfig,
+            };
+            break;
         }
 
         // Broadcast to local tabs/windows immediately
@@ -331,8 +348,16 @@ export function useTimerSync(roomId: string = 'main') {
     (title: string, speaker?: string) => dispatchAction({ type: 'SET_TITLE', title, speaker }),
     [dispatchAction]
   );
+  const updateTheme = useCallback(
+    (themeConfig: Partial<TimerThemeConfig>) => dispatchAction({ type: 'UPDATE_THEME', themeConfig }),
+    [dispatchAction]
+  );
 
-  const colorStatus: TimerColorStatus = getTimerColorStatus(state.remainingSeconds);
+  const colorStatus: TimerColorStatus = getTimerColorStatus(
+    state.remainingSeconds,
+    state.themeConfig?.warning1Seconds ?? 60,
+    state.themeConfig?.warning2Seconds ?? 30
+  );
 
   return {
     state,
@@ -350,6 +375,7 @@ export function useTimerSync(roomId: string = 'main') {
     toggleSound,
     toggleOvertime,
     setTitleAndSpeaker,
+    updateTheme,
   };
 }
 

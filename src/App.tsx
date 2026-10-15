@@ -4,12 +4,14 @@ import { StageDisplay } from './components/StageDisplay';
 import { Controller } from './components/Controller';
 import { Header } from './components/Header';
 import { ShareModal } from './components/ShareModal';
+import { ThemeModal } from './components/ThemeModal';
 
 export default function App() {
   // Parse query params for room and view mode
   const [currentView, setCurrentView] = useState<'controller' | 'stage'>('controller');
   const [roomId, setRoomId] = useState<string>('main');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -40,6 +42,7 @@ export default function App() {
     toggleSound,
     toggleOvertime,
     setTitleAndSpeaker,
+    updateTheme,
   } = useTimerSync(roomId);
 
   const handleOpenStageScreen = () => {
@@ -74,6 +77,7 @@ export default function App() {
         onSelectView={setCurrentView}
         onOpenStageScreen={handleOpenStageScreen}
         onOpenShareModal={() => setIsShareModalOpen(true)}
+        onOpenThemeModal={() => setIsThemeModalOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -93,6 +97,7 @@ export default function App() {
           onToggleOvertime={toggleOvertime}
           onSetTitleAndSpeaker={setTitleAndSpeaker}
           onOpenShareModal={() => setIsShareModalOpen(true)}
+          onOpenThemeModal={() => setIsThemeModalOpen(true)}
         />
       </main>
 
@@ -100,6 +105,13 @@ export default function App() {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         roomId={roomId}
+      />
+
+      <ThemeModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+        themeConfig={state.themeConfig}
+        onSaveTheme={updateTheme}
       />
     </div>
   );
