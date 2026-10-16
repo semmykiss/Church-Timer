@@ -227,7 +227,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Exact user requirement: WHEN THE TIME IS OVER, DISPLAY Time-up in RED */
           <div className="text-center animate-bounce-subtle">
             <div
-              className="text-[clamp(4.5rem,14vw,14rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
+              className="text-[clamp(6rem,18vw,22rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
@@ -262,7 +262,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Active Countdown: GREEN, AMBER, RED transitions */
           <div className="text-center flex flex-col items-center">
             <div
-              className="text-[clamp(5.5rem,19vw,18rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
+              className="text-[clamp(7rem,23vw,24rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
