@@ -46,6 +46,55 @@ const DEFAULT_THEME_CONFIG: TimerThemeConfig = {
   fontFamily: 'mono',
 };
 
+export interface ChurchLogoConfig {
+  enabled: boolean;
+  presetId: 'cross' | 'dove' | 'shield' | 'cathedral' | 'custom';
+  customDataUrl?: string;
+  churchName: string;
+  position: 'top-left' | 'top-right' | 'top-center' | 'bottom-left' | 'watermark';
+  size: 'sm' | 'md' | 'lg' | 'xl';
+  opacity: number;
+  showOnStage: boolean;
+  showOnController: boolean;
+  showOnNdi: boolean;
+}
+
+const DEFAULT_CHURCH_LOGO: ChurchLogoConfig = {
+  enabled: true,
+  presetId: 'cross',
+  churchName: 'Grace Sanctuary',
+  position: 'top-left',
+  size: 'md',
+  opacity: 0.9,
+  showOnStage: true,
+  showOnController: true,
+  showOnNdi: true,
+};
+
+export interface NdiConfig {
+  enabled: boolean;
+  layout: 'lower-third' | 'corner-bug' | 'fullscreen-hud' | 'clean-timer';
+  background: 'transparent' | 'chroma-green' | 'chroma-blue' | 'chroma-magenta' | 'black';
+  position: 'bottom-center' | 'bottom-left' | 'bottom-right' | 'top-right' | 'top-left';
+  showSpeaker: boolean;
+  showTitle: boolean;
+  showLogo: boolean;
+  showProgressBar: boolean;
+  scale: number;
+}
+
+const DEFAULT_NDI_CONFIG: NdiConfig = {
+  enabled: true,
+  layout: 'lower-third',
+  background: 'transparent',
+  position: 'bottom-center',
+  showSpeaker: true,
+  showTitle: true,
+  showLogo: true,
+  showProgressBar: true,
+  scale: 1.0,
+};
+
 interface ServerTimerState {
   roomId: string;
   title: string;
@@ -61,6 +110,8 @@ interface ServerTimerState {
   soundAlertsEnabled: boolean;
   clockModeEnabled: boolean;
   themeConfig: TimerThemeConfig;
+  churchLogo: ChurchLogoConfig;
+  ndiConfig: NdiConfig;
   version: number;
 }
 
@@ -87,6 +138,8 @@ function getOrCreateRoom(roomId: string): ServerTimerState {
       soundAlertsEnabled: true,
       clockModeEnabled: true,
       themeConfig: { ...DEFAULT_THEME_CONFIG },
+      churchLogo: { ...DEFAULT_CHURCH_LOGO },
+      ndiConfig: { ...DEFAULT_NDI_CONFIG },
       version: 1,
     };
     rooms.set(normalizedId, room);
@@ -292,6 +345,45 @@ async function startServer() {
         }
         break;
       }
+      case 'UPDATE_CHURCH_LOGO': {
+        if (action.logo && typeof action.logo === 'object') {
+          room.churchLogo = {
+            ...room.churchLogo,
+            ...action.logo,
+          };
+          room.lastUpdatedAt = now;
+          room.version++;
+        }
+        break;
+      }
+      case 'UPDATE_NDI_CONFIG': {
+        if (action.ndi && typeof action.ndi === 'object') {
+          room.ndiConfig = {
+            ...room.ndiConfig,
+            ...action.ndi,
+          };
+          room.lastUpdatedAt = now;
+          room.version++;
+        }
+        break;
+      }
+      case 'IMPORT_STATE': {
+        if (action.state && typeof action.state === 'object') {
+          const s = action.state;
+          if (s.title) room.title = String(s.title);
+          if (s.speaker !== undefined) room.speaker = String(s.speaker);
+          if (s.totalDurationSeconds) room.totalDurationSeconds = Number(s.totalDurationSeconds);
+          if (s.remainingSeconds !== undefined) room.remainingSeconds = Number(s.remainingSeconds);
+          if (s.overtimeEnabled !== undefined) room.overtimeEnabled = Boolean(s.overtimeEnabled);
+          if (s.soundAlertsEnabled !== undefined) room.soundAlertsEnabled = Boolean(s.soundAlertsEnabled);
+          if (s.themeConfig) room.themeConfig = { ...room.themeConfig, ...s.themeConfig };
+          if (s.churchLogo) room.churchLogo = { ...room.churchLogo, ...s.churchLogo };
+          if (s.ndiConfig) room.ndiConfig = { ...room.ndiConfig, ...s.ndiConfig };
+          room.lastUpdatedAt = now;
+          room.version++;
+        }
+        break;
+      }
       default:
         return res.status(400).json({ error: 'Unknown action type' });
     }
@@ -309,11 +401,21 @@ async function startServer() {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
       Connection: 'keep-alive',
     });
 
     // Send initial state immediately
     res.write(`data: ${JSON.stringify(getSanitizedState(room))}\n\n`);
+
+    // Keepalive ping every 15s to prevent Cloud Run and reverse proxy timeouts
+    const keepalive = setInterval(() => {
+      try {
+        res.write(': keepalive\n\n');
+      } catch {
+        clearInterval(keepalive);
+      }
+    }, 15000);
 
     if (!sseClients.has(roomId)) {
       sseClients.set(roomId, new Set());
@@ -322,8 +424,23 @@ async function startServer() {
     clientSet.add(res);
 
     req.on('close', () => {
+      clearInterval(keepalive);
       clientSet.delete(res);
     });
+  });
+
+  // Direct friendly URL routes for Stage Display
+  app.get(['/stage', '/stage/', '/stage/:roomId', '/display', '/display/', '/display/:roomId'], (req: Request, res: Response) => {
+    const targetRoom = req.params.roomId || (req.query.room as string) || 'main';
+    res.redirect(`/?view=stage&room=${encodeURIComponent(targetRoom)}`);
+  });
+
+  // Direct friendly URL routes for NDI Video Output
+  app.get(['/ndi', '/ndi/', '/ndi/:roomId'], (req: Request, res: Response) => {
+    const targetRoom = req.params.roomId || (req.query.room as string) || 'main';
+    const layout = req.query.layout || 'lower-third';
+    const bg = req.query.bg || 'transparent';
+    res.redirect(`/?view=ndi&room=${encodeURIComponent(targetRoom)}&layout=${encodeURIComponent(layout as string)}&bg=${encodeURIComponent(bg as string)}`);
   });
 
   // Mount Vite or static server

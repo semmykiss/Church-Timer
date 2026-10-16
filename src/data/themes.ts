@@ -112,10 +112,11 @@ export const THEME_PRESETS: ThemePresetOption[] = [
   },
 ];
 
-export const BACKGROUND_STYLES = {
+export const BACKGROUND_STYLES: Record<string, string> = {
   'pitch-black': 'bg-black text-white',
   'midnight-navy': 'bg-[#030712] text-white',
   'deep-slate': 'bg-[#090d16] text-white',
   'charcoal-bronze': 'bg-[#0c0a09] text-white',
   'dark-purple': 'bg-[#0b0416] text-white',
+  'transparent': 'bg-transparent text-white',
 };

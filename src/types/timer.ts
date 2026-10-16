@@ -25,7 +25,7 @@ export interface ChurchServiceTemplate {
 export interface TimerThemeConfig {
   themeId: string;
   themeName: string;
-  backgroundStyle: 'pitch-black' | 'midnight-navy' | 'deep-slate' | 'charcoal-bronze' | 'dark-purple';
+  backgroundStyle: 'pitch-black' | 'midnight-navy' | 'deep-slate' | 'charcoal-bronze' | 'dark-purple' | 'transparent';
   countdownColor: string; // e.g. '#10b981'
   warning1Color: string;  // e.g. '#f59e0b'
   warning2Color: string;  // e.g. '#ef4444'
@@ -47,11 +47,64 @@ export const DEFAULT_THEME_CONFIG: TimerThemeConfig = {
   warning2Color: '#ef4444',  // red
   timeUpColor: '#ef4444',    // red
   timeUpText: 'Time-up',
-  warning1Seconds: 60,
-  warning2Seconds: 30,
+  warning1Seconds: 120,
+  warning2Seconds: 60,
   showClock: true,
   showSpeaker: true,
   fontFamily: 'mono',
+};
+
+export type LogoPosition = 'top-left' | 'top-right' | 'top-center' | 'bottom-left' | 'watermark';
+export type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
+export type LogoPreset = 'cross' | 'dove' | 'shield' | 'cathedral' | 'custom';
+
+export interface ChurchLogoConfig {
+  enabled: boolean;
+  presetId: LogoPreset;
+  customDataUrl?: string; // uploaded base64 data url
+  churchName: string;
+  position: LogoPosition;
+  size: LogoSize;
+  opacity: number; // 0.1 to 1.0
+  showOnStage: boolean;
+  showOnController: boolean;
+  showOnNdi: boolean;
+}
+
+export const DEFAULT_CHURCH_LOGO: ChurchLogoConfig = {
+  enabled: true,
+  presetId: 'cross',
+  churchName: 'Rccg Jesus Embassy',
+  position: 'top-left',
+  size: 'md',
+  opacity: 0.9,
+  showOnStage: true,
+  showOnController: true,
+  showOnNdi: true,
+};
+
+export interface NdiConfig {
+  enabled: boolean;
+  layout: 'lower-third' | 'corner-bug' | 'fullscreen-hud' | 'clean-timer';
+  background: 'transparent' | 'chroma-green' | 'chroma-blue' | 'chroma-magenta' | 'black';
+  position: 'bottom-center' | 'bottom-left' | 'bottom-right' | 'top-right' | 'top-left';
+  showSpeaker: boolean;
+  showTitle: boolean;
+  showLogo: boolean;
+  showProgressBar: boolean;
+  scale: number; // 0.8 to 1.5
+}
+
+export const DEFAULT_NDI_CONFIG: NdiConfig = {
+  enabled: true,
+  layout: 'lower-third',
+  background: 'transparent',
+  position: 'bottom-center',
+  showSpeaker: true,
+  showTitle: true,
+  showLogo: true,
+  showProgressBar: true,
+  scale: 1.0,
 };
 
 export interface TimerState {
@@ -69,6 +122,8 @@ export interface TimerState {
   soundAlertsEnabled: boolean;
   clockModeEnabled: boolean; // if true when stopped, shows real-time clock
   themeConfig: TimerThemeConfig;
+  churchLogo: ChurchLogoConfig;
+  ndiConfig: NdiConfig;
   version: number;
 }
 
@@ -85,7 +140,10 @@ export type TimerAction =
   | { type: 'TOGGLE_SOUND'; enabled?: boolean }
   | { type: 'TOGGLE_OVERTIME'; enabled?: boolean }
   | { type: 'LOAD_PRESET'; preset: ChurchPreset }
-  | { type: 'UPDATE_THEME'; themeConfig: Partial<TimerThemeConfig> };
+  | { type: 'UPDATE_THEME'; themeConfig: Partial<TimerThemeConfig> }
+  | { type: 'UPDATE_CHURCH_LOGO'; logo: Partial<ChurchLogoConfig> }
+  | { type: 'UPDATE_NDI_CONFIG'; ndi: Partial<NdiConfig> }
+  | { type: 'IMPORT_STATE'; state: Partial<TimerState> };
 
 export type TimerColorStatus = 'green' | 'amber' | 'red' | 'time-up';
 

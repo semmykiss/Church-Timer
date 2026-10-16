@@ -7,6 +7,10 @@ import {
   ChurchPreset,
   TimerThemeConfig,
   DEFAULT_THEME_CONFIG,
+  ChurchLogoConfig,
+  DEFAULT_CHURCH_LOGO,
+  NdiConfig,
+  DEFAULT_NDI_CONFIG,
 } from '../types/timer';
 import { playChime } from '../utils/audio';
 
@@ -25,6 +29,8 @@ const DEFAULT_STATE: TimerState = {
   soundAlertsEnabled: true,
   clockModeEnabled: true,
   themeConfig: { ...DEFAULT_THEME_CONFIG },
+  churchLogo: { ...DEFAULT_CHURCH_LOGO },
+  ndiConfig: { ...DEFAULT_NDI_CONFIG },
   version: 1,
 };
 
@@ -135,14 +141,38 @@ export function useTimerSync(roomId: string = 'main') {
           reconnectTimeout = setTimeout(connect, 3000);
         };
       } catch (err) {
-        console.warn('SSE not supported or connection error, relying on local sync:', err);
-        setConnected(false);
+        console.warn('SSE connection failed to initialize:', err);
+        reconnectTimeout = setTimeout(connect, 3000);
       }
     }
+
+    // Immediate initial REST fetch for zero-delay hydration
+    const fetchFreshState = async () => {
+      try {
+        const res = await fetch(`/api/rooms/${normalizedRoomId}/state`);
+        if (res.ok) {
+          const data = (await res.json()) as TimerState;
+          setState((prev) => {
+            if (data.version >= prev.version || data.lastUpdatedAt >= prev.lastUpdatedAt) {
+              return data;
+            }
+            return prev;
+          });
+          setConnected(true);
+        }
+      } catch {
+        // network issue
+      }
+    };
+
+    fetchFreshState();
+    // Safety polling heartbeat every 2.5 seconds to guarantee synchronization across all proxy environments
+    const pollInterval = setInterval(fetchFreshState, 2500);
 
     connect();
 
     return () => {
+      clearInterval(pollInterval);
       if (eventSource) {
         eventSource.close();
       }
@@ -286,6 +316,26 @@ export function useTimerSync(roomId: string = 'main') {
               ...action.themeConfig,
             };
             break;
+          case 'UPDATE_CHURCH_LOGO':
+            updated.churchLogo = {
+              ...prev.churchLogo,
+              ...action.logo,
+            };
+            break;
+          case 'UPDATE_NDI_CONFIG':
+            updated.ndiConfig = {
+              ...prev.ndiConfig,
+              ...action.ndi,
+            };
+            break;
+          case 'IMPORT_STATE':
+            updated = {
+              ...prev,
+              ...action.state,
+              lastUpdatedAt: now,
+              version: prev.version + 1,
+            };
+            break;
         }
 
         // Broadcast to local tabs/windows immediately
@@ -352,6 +402,18 @@ export function useTimerSync(roomId: string = 'main') {
     (themeConfig: Partial<TimerThemeConfig>) => dispatchAction({ type: 'UPDATE_THEME', themeConfig }),
     [dispatchAction]
   );
+  const updateChurchLogo = useCallback(
+    (logo: Partial<ChurchLogoConfig>) => dispatchAction({ type: 'UPDATE_CHURCH_LOGO', logo }),
+    [dispatchAction]
+  );
+  const updateNdiConfig = useCallback(
+    (ndi: Partial<NdiConfig>) => dispatchAction({ type: 'UPDATE_NDI_CONFIG', ndi }),
+    [dispatchAction]
+  );
+  const importState = useCallback(
+    (stateToImport: Partial<TimerState>) => dispatchAction({ type: 'IMPORT_STATE', state: stateToImport }),
+    [dispatchAction]
+  );
 
   const colorStatus: TimerColorStatus = getTimerColorStatus(
     state.remainingSeconds,
@@ -376,6 +438,9 @@ export function useTimerSync(roomId: string = 'main') {
     toggleOvertime,
     setTitleAndSpeaker,
     updateTheme,
+    updateChurchLogo,
+    updateNdiConfig,
+    importState,
   };
 }
 

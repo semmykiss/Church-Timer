@@ -3,18 +3,21 @@ import { TimerState, getTimerColorStatus, getActiveTimerColor, DEFAULT_THEME_CON
 import { BACKGROUND_STYLES } from '../data/themes';
 import { formatTimeDisplay } from '../hooks/useTimerSync';
 import { Maximize2, Minimize2, EyeOff, Radio, Clock, ShieldAlert } from 'lucide-react';
+import { ChurchLogo } from './ChurchLogo';
 
 interface StageDisplayProps {
   state: TimerState;
   connected: boolean;
   onAdjustTime?: (delta: number) => void;
   isStandalone?: boolean;
+  onSwitchToController?: () => void;
 }
 
 export const StageDisplay: React.FC<StageDisplayProps> = ({
   state,
   connected,
   isStandalone = false,
+  onSwitchToController,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
@@ -138,38 +141,60 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
         }}
       />
 
+      {/* Background Watermark Church Logo if configured */}
+      {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'watermark' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 select-none scale-150">
+          <ChurchLogo config={state.churchLogo} showText={false} className="w-96 h-96" />
+        </div>
+      )}
+
       {/* Top Bar: Current Program & Wall Clock */}
       <header className="relative z-10 flex items-center justify-between border-b border-neutral-800/80 pb-4">
-        {/* Left: Current Church Service Item */}
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase tracking-wider font-semibold text-neutral-400">
-              Current Session
-            </span>
-            <span className="text-neutral-600">·</span>
-            <span
-              className="text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
-              style={{ color: activeColor }}
-            >
-              {statusLabel}
-            </span>
-          </div>
-          {theme.showSpeaker !== false && (
-            <>
-              <h1 className="text-xl md:text-3xl font-bold text-neutral-100 tracking-tight mt-0.5 truncate max-w-xl">
-                {state.title || 'Church Service'}
-              </h1>
-              {state.speaker && (
-                <p className="text-sm md:text-base text-neutral-400 mt-0.5">
-                  Speaker: <span className="text-neutral-200 font-medium">{state.speaker}</span>
-                </p>
-              )}
-            </>
+        {/* Left: Church Logo (if top-left) and Current Church Service Item */}
+        <div className="flex items-center gap-4">
+          {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'top-left' && (
+            <ChurchLogo config={state.churchLogo} showText={false} />
           )}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wider font-semibold text-neutral-400">
+                Current Session
+              </span>
+              <span className="text-neutral-600">·</span>
+              <span
+                className="text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
+                style={{ color: activeColor }}
+              >
+                {statusLabel}
+              </span>
+            </div>
+            {theme.showSpeaker !== false && (
+              <>
+                <h1 className="text-xl md:text-3xl font-bold text-neutral-100 tracking-tight mt-0.5 truncate max-w-xl">
+                  {state.title || 'Church Service'}
+                </h1>
+                {state.speaker && (
+                  <p className="text-sm md:text-base text-neutral-400 mt-0.5">
+                    Speaker: <span className="text-neutral-200 font-medium">{state.speaker}</span>
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Center: Church Logo (if top-center) */}
+        {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'top-center' && (
+          <div className="hidden lg:flex items-center justify-center">
+            <ChurchLogo config={state.churchLogo} showText={true} />
+          </div>
+        )}
 
         {/* Right: Wall Clock & Online Status */}
         <div className="flex items-center gap-6 text-right">
+          {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'top-right' && (
+            <ChurchLogo config={state.churchLogo} showText={false} />
+          )}
           {theme.showClock !== false && (
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
@@ -292,16 +317,21 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {isStandalone && (
+          {onSwitchToController ? (
+            <button
+              onClick={onSwitchToController}
+              className="text-neutral-400 hover:text-white transition-colors underline underline-offset-4 mr-2"
+            >
+              Open Director Console
+            </button>
+          ) : isStandalone ? (
             <a
-              href="/"
-              target="_blank"
-              rel="noreferrer"
+              href={`/?room=${encodeURIComponent(state.roomId)}`}
               className="text-neutral-400 hover:text-white transition-colors underline underline-offset-4 mr-2"
             >
               Open Director Console
             </a>
-          )}
+          ) : null}
           <button
             onClick={toggleFullscreen}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/80 rounded-md text-neutral-200 transition-colors"

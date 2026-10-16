@@ -8,6 +8,12 @@
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light-mode body {
+    background-color: #f8fafc;
+    color: #0f172a;
   }
 }
 

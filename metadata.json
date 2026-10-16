@@ -1,6 +1,6 @@
 {
   "name": "SanctuaryTimer - Church Stage & Service Countdown",
-  "description": "Professional church countdown timer with second-screen stage confidence display, multi-device online synchronization, and stage color alerts.",
+  "description": "Professional church countdown timer with second-screen stage confidence display, NDI video output for vMix and OBS, custom church logo branding, and offline use.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
