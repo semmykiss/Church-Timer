@@ -62,7 +62,7 @@ export interface ChurchLogoConfig {
 const DEFAULT_CHURCH_LOGO: ChurchLogoConfig = {
   enabled: true,
   presetId: 'cross',
-  churchName: 'Grace Sanctuary',
+  churchName: 'Rccg Jesus Embassy',
   position: 'top-left',
   size: 'md',
   opacity: 0.9,
