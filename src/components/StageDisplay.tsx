@@ -130,6 +130,21 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       ? "'Plus Jakarta Sans', sans-serif"
       : "'JetBrains Mono', monospace";
 
+  // Adaptive digit sizing: fill the screen normally, but shrink automatically
+  // when a stage message is showing so the pulpit prompt never goes off-screen.
+  // Longer formats (HH:MM:SS) are narrower-fit since glyph width, not height,
+  // becomes the binding constraint.
+  const messageActive = Boolean(state.stageMessage && state.stageMessage.active);
+  const digitFontSize = isTimeUp
+    ? messageActive
+      ? 'clamp(4rem, 12vw, 18rem)'
+      : 'clamp(7rem, 22vw, 30rem)'
+    : messageActive
+    ? 'clamp(5rem, 16vw, 22rem)'
+    : formatted.length > 5
+    ? 'clamp(5rem, 19vw, 30rem)'
+    : 'clamp(8rem, 27vw, 38rem)';
+
   // If Blackout is active
   if (state.isBlackout) {
     return (
@@ -260,10 +275,11 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Exact user requirement: WHEN THE TIME IS OVER, DISPLAY Time-up in RED */
           <div className="text-center animate-bounce-subtle">
             <div
-              className="text-[clamp(8rem,26vw,34rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
+              className="font-extrabold tracking-tight leading-none transition-colors duration-300"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
+                fontSize: digitFontSize,
                 filter: `drop-shadow(0 0 45px ${activeColor}70)`,
               }}
             >
@@ -295,10 +311,11 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Active Countdown: GREEN, AMBER, RED transitions */
           <div className="text-center flex flex-col items-center">
             <div
-              className="text-[clamp(9rem,34vw,44rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
+              className="font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
+                fontSize: digitFontSize,
                 filter: `drop-shadow(0 0 35px ${activeColor}40)`,
               }}
             >
@@ -320,18 +337,18 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
         {/* Live Stage Message Alert (e.g. from AV director to the stage/pulpit) */}
         {state.stageMessage && state.stageMessage.active && (
           <div
-            className={`mt-6 md:mt-10 max-w-4xl w-full mx-auto px-6 py-4 rounded-xl border flex items-center gap-4 shadow-2xl transition-all ${
+            className={`mt-4 md:mt-6 max-w-4xl w-full mx-auto px-5 py-3 rounded-xl border flex items-center gap-3 shadow-2xl transition-all ${
               state.stageMessage.flash
                 ? 'animate-flash-red text-white'
                 : 'bg-neutral-900 border-neutral-700 text-neutral-100'
             }`}
           >
-            <ShieldAlert className={`w-8 h-8 shrink-0 ${state.stageMessage.flash ? 'text-white' : 'text-amber-400'}`} />
-            <div className="flex-1">
-              <div className={`text-xs uppercase tracking-wider font-bold ${state.stageMessage.flash ? 'text-white/90' : 'text-amber-400'}`}>
+            <ShieldAlert className={`w-6 h-6 md:w-7 md:h-7 shrink-0 ${state.stageMessage.flash ? 'text-white' : 'text-amber-400'}`} />
+            <div className="flex-1 min-w-0">
+              <div className={`text-[10px] md:text-xs uppercase tracking-wider font-bold ${state.stageMessage.flash ? 'text-white/90' : 'text-amber-400'}`}>
                 Message from Audio-Visual Booth
               </div>
-              <div className="text-lg md:text-2xl font-bold text-white mt-0.5">
+              <div className="text-base md:text-xl font-bold text-white mt-0.5 truncate">
                 {state.stageMessage.text}
               </div>
             </div>
