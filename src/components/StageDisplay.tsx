@@ -160,7 +160,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
     <div
       className={`relative w-full h-full min-h-screen ${
         BACKGROUND_STYLES[theme.backgroundStyle] || 'bg-black text-white'
-      } flex flex-col justify-between p-6 md:p-10 select-none overflow-hidden font-sans`}
+      } flex flex-col justify-between p-4 md:p-6 select-none overflow-hidden font-sans`}
       onMouseMove={() => {
         setControlsVisible(true);
       }}
@@ -182,7 +182,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       )}
 
       {/* Top Bar: Current Program & Wall Clock */}
-      <header className="relative z-10 flex items-center justify-between border-b border-neutral-800/80 pb-4">
+      <header className="relative z-10 flex items-center justify-between border-b border-neutral-800/80 pb-3">
         {/* Left: Church Logo (if top-left) and Current Church Service Item */}
         <div className="flex items-center gap-4">
           {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'top-left' && (
@@ -260,7 +260,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Exact user requirement: WHEN THE TIME IS OVER, DISPLAY Time-up in RED */
           <div className="text-center animate-bounce-subtle">
             <div
-              className="text-[clamp(6rem,18vw,22rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
+              className="text-[clamp(8rem,26vw,34rem)] font-extrabold tracking-tight leading-none transition-colors duration-300"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
@@ -295,7 +295,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           /* Active Countdown: GREEN, AMBER, RED transitions */
           <div className="text-center flex flex-col items-center">
             <div
-              className="text-[clamp(7rem,23vw,24rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
+              className="text-[clamp(9rem,34vw,44rem)] font-extrabold tracking-tighter leading-none tabular-nums transition-colors duration-500 select-all"
               style={{
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
@@ -305,8 +305,8 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
               {formatted}
             </div>
 
-            {/* Running status bar */}
-            <div className="mt-4 flex items-center gap-3 text-neutral-400 text-xs md:text-sm font-medium">
+            {/* Running status bar — kept subtle so digits dominate */}
+            <div className="mt-3 flex items-center gap-3 text-neutral-500 text-[10px] md:text-xs font-medium">
               {!state.isRunning && (
                 <span className="px-3 py-1 bg-neutral-800 text-neutral-300 rounded font-semibold tracking-wide">
                   PAUSED
