@@ -107,6 +107,17 @@ export const DEFAULT_NDI_CONFIG: NdiConfig = {
   scale: 1.0,
 };
 
+// Server-synced schedule item (mirrors server/types.ts Schedule)
+export interface Schedule {
+  id: string;
+  title: string;
+  speaker?: string;
+  durationMinutes: number;
+  durationSeconds: number;
+  category: 'word' | 'prayer' | 'worship' | 'custom' | 'event' | 'announcements' | 'offering';
+  createdAt: number;
+}
+
 export interface TimerState {
   roomId: string;
   title: string;
@@ -139,13 +150,27 @@ export type TimerAction =
   | { type: 'TOGGLE_BLACKOUT'; isBlackout?: boolean }
   | { type: 'TOGGLE_SOUND'; enabled?: boolean }
   | { type: 'TOGGLE_OVERTIME'; enabled?: boolean }
-  | { type: 'LOAD_PRESET'; preset: ChurchPreset }
+  | { type: 'LOAD_PRESET'; preset: ChurchPreset | Schedule }
   | { type: 'UPDATE_THEME'; themeConfig: Partial<TimerThemeConfig> }
   | { type: 'UPDATE_CHURCH_LOGO'; logo: Partial<ChurchLogoConfig> }
   | { type: 'UPDATE_NDI_CONFIG'; ndi: Partial<NdiConfig> }
-  | { type: 'IMPORT_STATE'; state: Partial<TimerState> };
+  | { type: 'IMPORT_STATE'; state: Partial<TimerState> }
+  | { type: 'SET_THRESHOLDS'; warning1Seconds: number; warning2Seconds: number };
 
 export type TimerColorStatus = 'green' | 'amber' | 'red' | 'time-up';
+
+// Recommended amber/red warning thresholds per session duration.
+// Mirrors server/config.ts recommendedThresholds so offline mode scales identically.
+export function recommendedThresholds(totalSeconds: number): {
+  warning1Seconds: number;
+  warning2Seconds: number;
+} {
+  if (totalSeconds <= 5 * 60) return { warning1Seconds: 60, warning2Seconds: 30 };    // 1-5 min
+  if (totalSeconds <= 15 * 60) return { warning1Seconds: 120, warning2Seconds: 60 };  // 5-15 min
+  if (totalSeconds <= 30 * 60) return { warning1Seconds: 180, warning2Seconds: 60 };  // 15-30 min
+  if (totalSeconds <= 60 * 60) return { warning1Seconds: 300, warning2Seconds: 120 }; // 30-60 min
+  return { warning1Seconds: 600, warning2Seconds: 300 };                              // 60+ min
+}
 
 export function getTimerColorStatus(
   remainingSeconds: number,

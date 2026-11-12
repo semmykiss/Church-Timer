@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: #020617;
@@ -9,11 +13,99 @@
     padding: 0;
     overflow-x: hidden;
     transition: background-color 0.2s ease, color 0.2s ease;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   html.light-mode body {
     background-color: #f8fafc;
     color: #0f172a;
+  }
+
+  /* Refined selection color */
+  ::selection {
+    background: rgba(16, 185, 129, 0.28);
+  }
+
+  /* Slim, unobtrusive scrollbar */
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.38);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  /* Consistent premium focus rings */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  a:focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.55);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+}
+
+@layer utilities {
+  /* Editorial display face for headings and hero numbers */
+  .font-display {
+    font-family: 'Sora', 'Plus Jakarta Sans', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Timer digits: monospaced + tabular so nothing shifts while counting */
+  .font-timer {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+    letter-spacing: -0.045em;
+  }
+
+  /* Soft lift on hover for interactive cards */
+  .lift {
+    transition: transform 0.35s var(--ease-premium), box-shadow 0.35s var(--ease-premium), border-color 0.35s var(--ease-premium);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Top sheen line used on premium panels */
+  .sheen {
+    position: relative;
+  }
+  .sheen::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* Subtle radial spotlight behind key panels */
+  .spotlight {
+    position: relative;
+  }
+  .spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 55%);
+    pointer-events: none;
+    border-radius: inherit;
   }
 }
 
@@ -28,4 +120,37 @@
 
 .animate-bounce-subtle {
   animation: bounceSubtle 1.8s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+
+/* Hard-blinking red alert for urgent stage messages ("Flash" in Prompt Center) */
+@keyframes flashRed {
+  0%, 49% {
+    background-color: rgba(220, 38, 38, 0.92);
+    border-color: #fca5a5;
+    box-shadow: 0 0 40px rgba(220, 38, 38, 0.55);
+  }
+  50%, 100% {
+    background-color: rgba(127, 29, 29, 0.30);
+    border-color: rgba(248, 113, 113, 0.55);
+    box-shadow: none;
+  }
+}
+
+.animate-flash-red {
+  animation: flashRed 1.1s steps(1, end) infinite;
 }

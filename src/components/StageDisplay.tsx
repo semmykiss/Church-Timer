@@ -59,6 +59,39 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
+  // Auto-fullscreen when opened as a pop-out stage window (?fs=1).
+  // Browsers block fullscreen without a user gesture, so we try immediately and
+  // otherwise grab fullscreen on the user's first click/keypress in the window.
+  const [pendingAutoFullscreen, setPendingAutoFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isStandalone) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fs') !== '1') return;
+
+    const attempt = document.documentElement.requestFullscreen?.();
+    if (attempt) {
+      attempt.catch(() => setPendingAutoFullscreen(true));
+    } else {
+      setPendingAutoFullscreen(true);
+    }
+  }, [isStandalone]);
+
+  useEffect(() => {
+    if (!pendingAutoFullscreen) return;
+
+    const goFullscreen = () => {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setPendingAutoFullscreen(false);
+    };
+    window.addEventListener('pointerdown', goFullscreen, { once: true });
+    window.addEventListener('keydown', goFullscreen, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', goFullscreen);
+      window.removeEventListener('keydown', goFullscreen);
+    };
+  }, [pendingAutoFullscreen]);
+
   // Keyboard shortcut: F for fullscreen, ESC to exit
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -289,13 +322,13 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           <div
             className={`mt-6 md:mt-10 max-w-4xl w-full mx-auto px-6 py-4 rounded-xl border flex items-center gap-4 shadow-2xl transition-all ${
               state.stageMessage.flash
-                ? 'bg-amber-500/20 border-amber-400 text-amber-200 animate-pulse'
+                ? 'animate-flash-red text-white'
                 : 'bg-neutral-900 border-neutral-700 text-neutral-100'
             }`}
           >
-            <ShieldAlert className="w-8 h-8 text-amber-400 shrink-0" />
+            <ShieldAlert className={`w-8 h-8 shrink-0 ${state.stageMessage.flash ? 'text-white' : 'text-amber-400'}`} />
             <div className="flex-1">
-              <div className="text-xs uppercase tracking-wider text-amber-400 font-bold">
+              <div className={`text-xs uppercase tracking-wider font-bold ${state.stageMessage.flash ? 'text-white/90' : 'text-amber-400'}`}>
                 Message from Audio-Visual Booth
               </div>
               <div className="text-lg md:text-2xl font-bold text-white mt-0.5">
@@ -351,6 +384,22 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           </button>
         </div>
       </footer>
+
+      {/* Auto-fullscreen fallback hint (shown until the first user interaction) */}
+      {pendingAutoFullscreen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm cursor-pointer"
+          onClick={toggleFullscreen}
+          title="Click to enter fullscreen"
+        >
+          <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-neutral-900/90 border border-neutral-700/80 shadow-2xl">
+            <Maximize2 className="w-5 h-5 text-emerald-400" />
+            <div>
+              <p className="text-sm font-bold text-white">Click anywhere to go fullscreen</p>
+              <p className="text-xs text-neutral-400 mt-0.5">Browsers require one click before a window can expand to full screen.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

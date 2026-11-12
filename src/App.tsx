@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTimerSync } from './hooks/useTimerSync';
 import { StageDisplay } from './components/StageDisplay';
 import { NdiDisplay } from './components/NdiDisplay';
@@ -12,6 +12,8 @@ import { ChurchLogoModal } from './components/ChurchLogoModal';
 import { InteroperabilityModal } from './components/InteroperabilityModal';
 import { useUITheme } from './context/ThemeContext';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './components/LoginPage';
 import { WifiOff } from 'lucide-react';
 
 function parseRoute(): { view: 'controller' | 'stage' | 'ndi'; room: string } {
@@ -60,7 +62,25 @@ function parseRoute(): { view: 'controller' | 'stage' | 'ndi'; room: string } {
 }
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+// Blocks the console until an AV operator signs in
+function AuthGate() {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+  return <AppShell />;
+}
+
+function AppShell() {
   const { theme } = useUITheme();
+  const { logout } = useAuth();
   const isOnline = useOnlineStatus();
   const initialRoute = parseRoute();
 
@@ -104,27 +124,119 @@ export default function App() {
     toggleBlackout,
     toggleSound,
     toggleOvertime,
+    setThresholds,
     setTitleAndSpeaker,
     updateTheme,
     updateChurchLogo,
     updateNdiConfig,
     importState,
+    getSchedules,
+    saveSchedule,
+    deleteSchedule,
   } = useTimerSync(roomId);
 
-  const handleOpenStageScreen = useCallback(() => {
+  // Stage pop-out window lifecycle (opened/closed via the "Extend 2nd Screen" toggle)
+  const stageWindowRef = useRef<Window | null>(null);
+  const [isStageWindowOpen, setIsStageWindowOpen] = useState(false);
+
+  // Keep button state in sync if the operator closes the stage window manually
+  useEffect(() => {
+    if (!isStageWindowOpen) return;
+    const poll = setInterval(() => {
+      const w = stageWindowRef.current;
+      if (!w || w.closed) {
+        stageWindowRef.current = null;
+        setIsStageWindowOpen(false);
+      }
+    }, 800);
+    return () => clearInterval(poll);
+  }, [isStageWindowOpen]);
+
+  const handleToggleStageScreen = useCallback(async () => {
+    // Toggle: if the stage window is open, close it
+    const existing = stageWindowRef.current;
+    if (existing && !existing.closed) {
+      existing.close();
+      stageWindowRef.current = null;
+      setIsStageWindowOpen(false);
+      return;
+    }
+    await handleOpenStageScreenRef.current?.();
+  }, []);
+
+  const handleOpenStageScreen = useCallback(async () => {
     const width = 1280;
     const height = 720;
-    const left = window.screen.width ? window.screen.width : 200;
-    const stageUrl = `${window.location.origin}/?view=stage&room=${encodeURIComponent(roomId)}`;
-    const newWindow = window.open(
-      stageUrl,
-      `SanctuaryStage_${roomId}`,
-      `width=${width},height=${height},left=${left},top=0,menubar=no,toolbar=no,location=no,status=no`
-    );
+
+    const scr = window.screen as any;
+    let left = (scr.availLeft ?? 0) + scr.availWidth - width;
+    let top = scr.availTop ?? 0;
+    let placedOnSecondScreen = false;
+
+    // Use the Window Management API when available for true second-monitor placement
+    try {
+      if ('getScreenDetails' in window) {
+        const details = await (window as any).getScreenDetails();
+        const screens: any[] = details.screens || [];
+        if (screens.length > 1) {
+          const other =
+            screens.find((s) => s !== details.currentScreen && (s.availWidth >= 1024 || s.width >= 1024)) ||
+            screens.find((s) => s !== details.currentScreen);
+          if (other) {
+            const w = Math.min(width, other.availWidth || other.width);
+            const h = Math.min(height, other.availHeight || other.height);
+            left = other.availLeft + Math.max(0, Math.floor(((other.availWidth || other.width) - w) / 2));
+            top = other.availTop + Math.max(0, Math.floor(((other.availHeight || other.height) - h) / 2));
+            placedOnSecondScreen = true;
+          }
+        }
+      }
+    } catch {
+      // Permission denied or API unavailable — fall through to heuristic below
+    }
+
+    if (!placedOnSecondScreen) {
+      // Heuristic: if the OS reports a multi-monitor extended desktop, place the
+      // window just past the primary screen's right edge (lands on screen 2).
+      const extended = (window.screen as any).isExtended === true;
+      if (extended) {
+        left = (scr.availLeft ?? 0) + scr.availWidth;
+        top = scr.availTop ?? 0;
+      } else {
+        left = (scr.availLeft ?? 0) + Math.max(0, scr.availWidth - width);
+        top = scr.availTop ?? 0;
+      }
+    }
+
+    const stageUrl = `${window.location.origin}/?view=stage&room=${encodeURIComponent(roomId)}&fs=1`;
+
+    const windowFeatures = [
+      `width=${width}`,
+      `height=${height}`,
+      `left=${Math.max(-32000, Math.min(left, 32000))}`,
+      `top=${Math.max(-32000, Math.min(top, 32000))}`,
+      `menubar=no`,
+      `toolbar=no`,
+      `location=no`,
+      `status=no`,
+      `resizable=yes`,
+      `scrollbars=no`,
+    ].join(',');
+
+    const newWindow = window.open(stageUrl, `SanctuaryStage_${roomId}`, windowFeatures);
+
     if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      // Fallback if popup is blocked or window fails to open
       window.open(stageUrl, '_blank');
+    } else {
+      stageWindowRef.current = newWindow;
+      setIsStageWindowOpen(true);
     }
   }, [roomId]);
+
+  // Reference so the toggle can always reach the latest open logic
+  const handleOpenStageScreenRef = useRef<(() => void | Promise<void>) | null>(null);
+  handleOpenStageScreenRef.current = handleOpenStageScreen;
 
   // Global Keyboard shortcuts for AV booth operators
   useEffect(() => {
@@ -171,13 +283,13 @@ export default function App() {
       else if (e.key === 's' || e.key === 'S') {
         if (!e.metaKey && !e.ctrlKey) {
           e.preventDefault();
-          setIsShareModalOpen((prev) => !prev);
+          setIsShareModalOpen(true);
         }
       }
       // 'T' / 't': Theme Modal
       else if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
-        setIsThemeModalOpen((prev) => !prev);
+        setIsThemeModalOpen(true);
       }
       // 'B' / 'b': Toggle Blackout
       else if (e.key === 'b' || e.key === 'B') {
@@ -217,12 +329,12 @@ export default function App() {
   const handleQuickTimeApply = (
     totalSeconds: number,
     title?: string,
-    speaker?: string,
-    autoStart?: boolean
+    speaker?: string
   ) => {
     setDuration(totalSeconds, title, speaker);
-    if (autoStart) {
-      setTimeout(() => startTimer(), 100);
+    if (title === undefined || speaker === undefined) {
+        // If no title/speaker provided, just use the duration
+        // (Logic handled by onSetDuration inside useTimerSync)
     }
   };
 
@@ -274,6 +386,8 @@ export default function App() {
           }
         }}
         onOpenStageScreen={handleOpenStageScreen}
+        onToggleStageScreen={handleToggleStageScreen}
+        isStageWindowOpen={isStageWindowOpen}
         onOpenNdiModal={() => setIsNdiModalOpen(true)}
         onOpenChurchLogoModal={() => setIsChurchLogoModalOpen(true)}
         onOpenInteroperabilityModal={() => setIsInteroperabilityModalOpen(true)}
@@ -283,6 +397,7 @@ export default function App() {
         connected={connected}
         roomId={roomId}
         churchLogo={state.churchLogo}
+        onLogout={logout}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -300,6 +415,7 @@ export default function App() {
           onToggleBlackout={toggleBlackout}
           onToggleSound={toggleSound}
           onToggleOvertime={toggleOvertime}
+          onSetThresholds={setThresholds}
           onSetTitleAndSpeaker={setTitleAndSpeaker}
           onOpenShareModal={() => setIsShareModalOpen(true)}
           onOpenThemeModal={() => setIsThemeModalOpen(true)}
@@ -307,6 +423,11 @@ export default function App() {
           onOpenNdiModal={() => setIsNdiModalOpen(true)}
           onOpenChurchLogoModal={() => setIsChurchLogoModalOpen(true)}
           onOpenInteroperabilityModal={() => setIsInteroperabilityModalOpen(true)}
+          onToggleStageScreen={handleToggleStageScreen}
+          isStageWindowOpen={isStageWindowOpen}
+          getSchedules={getSchedules}
+          saveSchedule={saveSchedule}
+          deleteSchedule={deleteSchedule}
         />
       </main>
 

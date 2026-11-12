@@ -23,7 +23,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const saved = localStorage.getItem(THEME_STORAGE_KEY) as UIThemePreset;
         if (saved && UI_THEMES[saved]) {
-          return saved;
+          // Legacy presets were retired — normalize them to their mode's base theme
+          if (saved === 'dark' || saved === 'light') return saved;
+          return UI_THEMES[saved].mode === 'light' ? 'light' : 'dark';
         }
       } catch {
         // fallback

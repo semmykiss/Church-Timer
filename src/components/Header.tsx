@@ -11,6 +11,9 @@ import {
   Image as ImageIcon,
   ArrowRightLeft,
   Laptop,
+  Menu,
+  ChevronDown,
+  LogOut,
 } from 'lucide-react';
 import { useUITheme } from '../context/ThemeContext';
 import { UIThemePreset } from '../types/uiTheme';
@@ -22,7 +25,9 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 interface HeaderProps {
   currentView: 'controller' | 'stage' | 'ndi';
   onSelectView: (view: 'controller' | 'stage' | 'ndi') => void;
-  onOpenStageScreen: () => void;
+  onOpenStageScreen?: () => void;
+  onToggleStageScreen?: () => void;
+  isStageWindowOpen?: boolean;
   onOpenNdiModal: () => void;
   onOpenChurchLogoModal: () => void;
   onOpenInteroperabilityModal: () => void;
@@ -32,12 +37,15 @@ interface HeaderProps {
   connected?: boolean;
   roomId?: string;
   churchLogo?: ChurchLogoConfig;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onSelectView,
   onOpenStageScreen,
+  onToggleStageScreen,
+  isStageWindowOpen = false,
   onOpenNdiModal,
   onOpenChurchLogoModal,
   onOpenInteroperabilityModal,
@@ -47,18 +55,24 @@ export const Header: React.FC<HeaderProps> = ({
   connected = true,
   roomId = 'main',
   churchLogo,
+  onLogout,
 }) => {
   const { currentTheme, theme, setTheme, toggleDarkLight } = useUITheme();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
-  // Close theme dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
         setShowThemeMenu(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -66,12 +80,8 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const THEME_OPTIONS: { id: UIThemePreset; name: string; dotColor: string }[] = [
-    { id: 'dark', name: 'Studio Dark', dotColor: '#0f172a' },
-    { id: 'light', name: 'Daylight Light', dotColor: '#f8fafc' },
-    { id: 'midnight-navy', name: 'Midnight Navy', dotColor: '#08152c' },
-    { id: 'emerald-sanctuary', name: 'Sanctuary Forest', dotColor: '#072418' },
-    { id: 'royal-purple', name: 'Royal Worship', dotColor: '#1a0a33' },
-    { id: 'warm-amber', name: 'Cathedral Amber', dotColor: '#241a08' },
+    { id: 'dark', name: 'Dark Mode', dotColor: '#0f172a' },
+    { id: 'light', name: 'Light Mode', dotColor: '#f8fafc' },
   ];
 
   return (
@@ -108,8 +118,8 @@ export const Header: React.FC<HeaderProps> = ({
         </span>
       </div>
 
-      {/* Zone 2: Navigation Links */}
-      <nav className="hidden lg:flex items-center gap-4 xl:gap-5 text-sm font-medium">
+      {/* Zone 2: Navigation Links — primary views + cascaded tools menu */}
+      <nav className="hidden md:flex items-center gap-4 xl:gap-5 text-sm font-medium">
         <button
           onClick={() => onSelectView('controller')}
           className={`transition-colors whitespace-nowrap shrink-0 ${
@@ -130,63 +140,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           Stage Screen
         </button>
-
-        {/* NDI Output Modal Trigger */}
-        <button
-          onClick={onOpenNdiModal}
-          className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:text-cyan-400`}
-          title="NDI® Video Output for vMix and OBS Studio"
-        >
-          <Video className="w-3.5 h-3.5 text-cyan-400" />
-          <span>NDI® Output</span>
-        </button>
-
-        {/* Church Logo Trigger */}
-        <button
-          onClick={onOpenChurchLogoModal}
-          className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:text-amber-400`}
-          title="Upload Church Logo & Set Brand Appearance"
-        >
-          <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
-          <span>Church Logo</span>
-        </button>
-
-        {/* Offline / Interoperability Trigger */}
-        <button
-          onClick={onOpenInteroperabilityModal}
-          className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:text-purple-400`}
-          title="Desktop App & Offline Backup Hub"
-        >
-          <ArrowRightLeft className="w-3.5 h-3.5 text-purple-400" />
-          <span>Interoperability</span>
-        </button>
-
-        {onOpenQuickSetup && (
-          <button
-            onClick={onOpenQuickSetup}
-            className={`flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:${theme.textPrimaryClass}`}
-            title="Quick Timer Setup & Adjustments"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>Quick Setup</span>
-          </button>
-        )}
-
-        <button
-          onClick={onOpenShareModal}
-          className={`flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:${theme.textPrimaryClass}`}
-        >
-          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Online URLs</span>
-        </button>
-
-        <button
-          onClick={onOpenThemeModal}
-          className={`flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 ${theme.textMutedClass} hover:${theme.textPrimaryClass}`}
-        >
-          <Palette className="w-3.5 h-3.5 text-purple-400" />
-          <span>Stage Colors</span>
-        </button>
       </nav>
 
       {/* Zone 3: Actions & Theme Controls */}
@@ -203,23 +156,69 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* NDI Output Quick Button on Smaller Screens */}
-        <button
-          onClick={onOpenNdiModal}
-          className="lg:hidden p-2 rounded-lg border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition"
-          title="NDI® Video Output"
-        >
-          <Video className="w-4 h-4" />
-        </button>
+        {/* Cascaded Tools Menu — all screen sizes */}
+        <div className="relative" ref={moreMenuRef}>
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className={`p-2 sm:px-2.5 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-medium ${theme.cardClass} ${theme.textPrimaryClass} hover:border-slate-400/40`}
+            title="Tools & Settings"
+            aria-label="Tools and settings menu"
+          >
+            <Menu className="w-4 h-4" />
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} />
+          </button>
 
-        {/* Church Logo Quick Button on Smaller Screens */}
-        <button
-          onClick={onOpenChurchLogoModal}
-          className="lg:hidden p-2 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition"
-          title="Church Logo"
-        >
-          <ImageIcon className="w-4 h-4" />
-        </button>
+          {showMoreMenu && (
+            <div
+              className={`absolute right-0 mt-2 w-56 rounded-xl border shadow-2xl py-2 z-50 text-xs ${theme.cardClass} ${theme.borderClass}`}
+            >
+              <div className={`px-3 py-1.5 border-b font-semibold uppercase tracking-wider text-[10px] ${theme.textMutedClass} ${theme.borderClass}`}>
+                Tools & Settings
+              </div>
+              <div className="p-1 space-y-0.5">
+                {onOpenQuickSetup && (
+                  <MoreMenuItem
+                    icon={<Zap className="w-4 h-4 text-amber-400" />}
+                    label="Quick Setup"
+                    hint="Timer (Q)"
+                    onClick={() => { setShowMoreMenu(false); onOpenQuickSetup(); }}
+                  />
+                )}
+                <MoreMenuItem
+                  icon={<Video className="w-4 h-4 text-cyan-400" />}
+                  label="NDI® Output"
+                  hint="vMix / OBS"
+                  onClick={() => { setShowMoreMenu(false); onOpenNdiModal(); }}
+                />
+                <MoreMenuItem
+                  icon={<ImageIcon className="w-4 h-4 text-amber-400" />}
+                  label="Church Logo"
+                  hint="Branding"
+                  onClick={() => { setShowMoreMenu(false); onOpenChurchLogoModal(); }}
+                />
+                <MoreMenuItem
+                  icon={<ArrowRightLeft className="w-4 h-4 text-purple-400" />}
+                  label="Interoperability"
+                  hint="Offline & Backup"
+                  onClick={() => { setShowMoreMenu(false); onOpenInteroperabilityModal(); }}
+                />
+                <MoreMenuItem
+                  icon={<QrCode className="w-4 h-4 text-emerald-400" />}
+                  label="Online URLs"
+                  hint="Stage tablets"
+                  onClick={() => { setShowMoreMenu(false); onOpenShareModal(); }}
+                />
+                <MoreMenuItem
+                  icon={<Palette className="w-4 h-4 text-purple-400" />}
+                  label="Stage Colors"
+                  hint="Thresholds"
+                  onClick={() => { setShowMoreMenu(false); onOpenThemeModal(); }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Quick Dark/Light Toggle */}
         <button
@@ -299,17 +298,64 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Primary Action: Open Stage Screen */}
+        {/* Operator Sign-out */}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-lg border transition-all ${theme.cardClass} ${theme.textMutedClass} hover:text-red-400 hover:border-red-500/50 hover:bg-red-500/10`}
+            title="Sign out of this console"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign out</span>
+          </button>
+        )}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="sm:hidden p-2 rounded-lg border transition-all border-red-500/40 text-red-400 hover:bg-red-500/10"
+            title="Sign out of this console"
+            aria-label="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Primary Action: Toggle the second-screen stage window */}
         <button
-          onClick={onOpenStageScreen}
-          className="px-3 sm:px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-md active:scale-95"
-          title="Open dedicated popup window to drag onto second sanctuary monitor"
+          onClick={onToggleStageScreen ?? onOpenStageScreen}
+          className={`px-3 sm:px-4 py-2 text-xs font-bold text-white rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 shadow-md active:scale-95 ${
+            isStageWindowOpen
+              ? 'bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 shadow-lg shadow-red-500/30'
+              : 'bg-emerald-600 hover:bg-emerald-500'
+          }`}
+          title={isStageWindowOpen ? 'Close the stage window on your second monitor' : 'Open the stage window on your second monitor'}
         >
           <Monitor className="w-4 h-4" />
-          <span className="hidden sm:inline">Open Stage Screen</span>
+          <span className="hidden sm:inline">{isStageWindowOpen ? 'Close Stage Screen' : 'Open Stage Screen'}</span>
           <span className="sm:hidden">Stage</span>
         </button>
       </div>
     </header>
+  );
+};
+
+// Row inside the cascaded "More" tools dropdown
+const MoreMenuItem: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  hint?: string;
+  onClick: () => void;
+}> = ({ icon, label, hint, onClick }) => {
+  const { theme } = useUITheme();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full px-3 py-2 rounded-lg flex items-center gap-3 text-left transition-colors hover:bg-slate-500/10 ${theme.textPrimaryClass}`}
+    >
+      {icon}
+      <span className="flex-1 font-medium">{label}</span>
+      {hint && <span className={`text-[10px] ${theme.textMutedClass}`}>{hint}</span>}
+    </button>
   );
 };

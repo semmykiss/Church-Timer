@@ -11,47 +11,65 @@ import {
   DEFAULT_CHURCH_LOGO,
   NdiConfig,
   DEFAULT_NDI_CONFIG,
+  recommendedThresholds,
+  Schedule
 } from '../types/timer';
 import { playChime } from '../utils/audio';
 
-const DEFAULT_STATE: TimerState = {
-  roomId: 'main',
-  title: 'The Sermon / Word',
-  speaker: 'Senior Pastor',
-  totalDurationSeconds: 2100, // 35 min
-  remainingSeconds: 2100,
-  isRunning: false,
-  endsAt: null,
-  lastUpdatedAt: Date.now(),
-  stageMessage: null,
-  isBlackout: false,
-  overtimeEnabled: true,
-  soundAlertsEnabled: true,
-  clockModeEnabled: true,
-  themeConfig: { ...DEFAULT_THEME_CONFIG },
-  churchLogo: { ...DEFAULT_CHURCH_LOGO },
-  ndiConfig: { ...DEFAULT_NDI_CONFIG },
-  version: 1,
-};
+export interface TimerSyncReturn {
+  state: TimerState;
+  connected: boolean;
+  colorStatus: TimerColorStatus;
+  startTimer: () => void;
+  pauseTimer: () => void;
+  resetTimer: () => void;
+  setDuration: (totalSeconds: number, title?: string, speaker?: string) => void;
+  adjustTime: (deltaSeconds: number) => void;
+  loadPreset: (preset: ChurchPreset | Schedule) => void;
+  sendStageMessage: (text: string, flash: boolean) => void;
+  clearStageMessage: () => void;
+  toggleBlackout: (isBlackout?: boolean) => void;
+  toggleSound: (enabled?: boolean) => void;
+  toggleOvertime: (enabled?: boolean) => void;
+  setTitleAndSpeaker: (title: string, speaker?: string) => void;
+  updateTheme: (themeConfig: Partial<TimerThemeConfig>) => void;
+  updateChurchLogo: (logo: Partial<ChurchLogoConfig>) => void;
+  updateNdiConfig: (ndi: Partial<NdiConfig>) => void;
+  setThresholds: (warning1Seconds: number, warning2Seconds: number) => void;
+  importState: (stateToImport: Partial<TimerState>) => void;
+  getSchedules: () => Promise<Schedule[]>;
+  saveSchedule: (schedule: Omit<Schedule, 'id' | 'createdAt'>) => Promise<Schedule>;
+  deleteSchedule: (id: string) => Promise<void>;
+}
 
-export function useTimerSync(roomId: string = 'main') {
+// Must match the server's CONTROLLER_API_KEY (env on both ends; shared default for local dev).
+// Without this header the server rejects every controller action with 401 and the UI
+// silently degrades to local-only state — stage displays on other devices would see nothing.
+const CONTROLLER_API_KEY =
+  (import.meta.env?.VITE_CONTROLLER_API_KEY as string | undefined) || 'default-secret-key';
+
+export function useTimerSync(roomId: string = 'main'): TimerSyncReturn {
   const normalizedRoomId = (roomId || 'main').toLowerCase();
-  const [state, setState] = useState<TimerState>(() => {
-    // Try to load cached state from localStorage if available
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`church_timer_state_${normalizedRoomId}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          return { ...DEFAULT_STATE, ...parsed, roomId: normalizedRoomId };
-        }
-      } catch {
-        // fallback
-      }
-    }
-    return { ...DEFAULT_STATE, roomId: normalizedRoomId };
+  const [state, setState] = useState<TimerState>({
+    roomId: normalizedRoomId,
+    title: 'The Sermon / Word',
+    speaker: 'Senior Pastor',
+    totalDurationSeconds: 2100,
+    remainingSeconds: 2100,
+    isRunning: false,
+    endsAt: null,
+    lastUpdatedAt: Date.now(),
+    stageMessage: null,
+    isBlackout: false,
+    overtimeEnabled: true,
+    soundAlertsEnabled: true,
+    clockModeEnabled: true,
+    themeConfig: { ...DEFAULT_THEME_CONFIG },
+    churchLogo: { ...DEFAULT_CHURCH_LOGO },
+    ndiConfig: { ...DEFAULT_NDI_CONFIG },
+    version: 1,
   });
-
+  
   const [connected, setConnected] = useState(false);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const chimeTrackerRef = useRef<{ amber: boolean; red: boolean; timeup: boolean }>({
@@ -68,15 +86,6 @@ export function useTimerSync(roomId: string = 'main') {
     const diff = Math.round((currentState.endsAt - Date.now()) / 1000);
     return diff;
   }, []);
-
-  // Save to local storage on state change
-  useEffect(() => {
-    try {
-      localStorage.setItem(`church_timer_state_${normalizedRoomId}`, JSON.stringify(state));
-    } catch {
-      // ignore
-    }
-  }, [state, normalizedRoomId]);
 
   // Handle BroadcastChannel for instant multi-window/second-screen communication on the same device
   useEffect(() => {
@@ -137,7 +146,6 @@ export function useTimerSync(roomId: string = 'main') {
             eventSource.close();
             eventSource = null;
           }
-          // Exponential backoff or retry after 3 seconds
           reconnectTimeout = setTimeout(connect, 3000);
         };
       } catch (err) {
@@ -166,7 +174,6 @@ export function useTimerSync(roomId: string = 'main') {
     };
 
     fetchFreshState();
-    // Safety polling heartbeat every 2.5 seconds to guarantee synchronization across all proxy environments
     const pollInterval = setInterval(fetchFreshState, 2500);
 
     connect();
@@ -185,7 +192,6 @@ export function useTimerSync(roomId: string = 'main') {
   // High precision client-side tick loop
   useEffect(() => {
     if (!state.isRunning) {
-      // Reset sound triggers when stopped or reset
       chimeTrackerRef.current = { amber: false, red: false, timeup: false };
       return;
     }
@@ -195,7 +201,6 @@ export function useTimerSync(roomId: string = 'main') {
         if (!prev.isRunning || !prev.endsAt) return prev;
         const currentRemaining = Math.round((prev.endsAt - Date.now()) / 1000);
 
-        // Sound alert triggers with customizable threshold support
         if (prev.soundAlertsEnabled) {
           const w1 = prev.themeConfig?.warning1Seconds ?? 60;
           const w2 = prev.themeConfig?.warning2Seconds ?? 30;
@@ -218,7 +223,7 @@ export function useTimerSync(roomId: string = 'main') {
           remainingSeconds: currentRemaining,
         };
       });
-    }, 250); // fast 250ms interval ensures accurate second transitions
+    }, 250);
 
     return () => clearInterval(interval);
   }, [state.isRunning, state.endsAt, state.soundAlertsEnabled]);
@@ -226,7 +231,6 @@ export function useTimerSync(roomId: string = 'main') {
   // Dispatch action to server and local BroadcastChannel
   const dispatchAction = useCallback(
     async (action: TimerAction) => {
-      // Optimistic local update
       const now = Date.now();
       setState((prev) => {
         let updated = { ...prev, lastUpdatedAt: now, version: prev.version + 1 };
@@ -258,6 +262,8 @@ export function useTimerSync(roomId: string = 'main') {
             const total = Math.max(1, action.totalSeconds);
             updated.totalDurationSeconds = total;
             updated.remainingSeconds = total;
+            // Auto-scale warning thresholds to the new session length
+            updated.themeConfig = { ...prev.themeConfig, ...recommendedThresholds(total) };
             if (prev.isRunning) {
               updated.endsAt = now + total * 1000;
             }
@@ -282,6 +288,8 @@ export function useTimerSync(roomId: string = 'main') {
             const totalDur = totalSec > 0 ? totalSec : 300;
             updated.totalDurationSeconds = totalDur;
             updated.remainingSeconds = totalDur;
+            // Auto-scale warning thresholds to the preset length
+            updated.themeConfig = { ...prev.themeConfig, ...recommendedThresholds(totalDur) };
             updated.title = p.title;
             updated.speaker = p.speaker || '';
             updated.isRunning = false;
@@ -328,6 +336,15 @@ export function useTimerSync(roomId: string = 'main') {
               ...action.ndi,
             };
             break;
+          case 'SET_THRESHOLDS':
+            if (action.warning1Seconds > 0 && action.warning2Seconds > 0 && action.warning1Seconds > action.warning2Seconds) {
+              updated.themeConfig = {
+                ...prev.themeConfig,
+                warning1Seconds: action.warning1Seconds,
+                warning2Seconds: action.warning2Seconds,
+              };
+            }
+            break;
           case 'IMPORT_STATE':
             updated = {
               ...prev,
@@ -338,24 +355,20 @@ export function useTimerSync(roomId: string = 'main') {
             break;
         }
 
-        // Broadcast to local tabs/windows immediately
         if (broadcastChannelRef.current) {
           try {
             broadcastChannelRef.current.postMessage(updated);
-          } catch {
-            // ignore
-          }
+          } catch {}
         }
         return updated;
       });
 
-      // Send to server API
       try {
-        const response = await fetch(`/api/rooms/${normalizedRoomId}/action`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(action),
-        });
+      const response = await fetch(`/api/rooms/${normalizedRoomId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': CONTROLLER_API_KEY },
+        body: JSON.stringify(action),
+      });
         if (response.ok) {
           const serverState = await response.json();
           setState(serverState);
@@ -376,12 +389,17 @@ export function useTimerSync(roomId: string = 'main') {
     [dispatchAction]
   );
   const adjustTime = useCallback((deltaSeconds: number) => dispatchAction({ type: 'ADJUST_TIME', deltaSeconds }), [dispatchAction]);
-  const loadPreset = useCallback((preset: ChurchPreset) => dispatchAction({ type: 'LOAD_PRESET', preset }), [dispatchAction]);
+  const loadPreset = useCallback((preset: ChurchPreset | Schedule) => dispatchAction({ type: 'LOAD_PRESET', preset }), [dispatchAction]);
   const sendStageMessage = useCallback(
     (text: string, flash: boolean = false) => dispatchAction({ type: 'SEND_STAGE_MESSAGE', text, flash }),
     [dispatchAction]
   );
   const clearStageMessage = useCallback(() => dispatchAction({ type: 'CLEAR_STAGE_MESSAGE' }), [dispatchAction]);
+  const setThresholds = useCallback(
+    (warning1Seconds: number, warning2Seconds: number) =>
+      dispatchAction({ type: 'SET_THRESHOLDS', warning1Seconds, warning2Seconds }),
+    [dispatchAction]
+  );
   const toggleBlackout = useCallback(
     (isBlackout?: boolean) => dispatchAction({ type: 'TOGGLE_BLACKOUT', isBlackout }),
     [dispatchAction]
@@ -415,6 +433,35 @@ export function useTimerSync(roomId: string = 'main') {
     [dispatchAction]
   );
 
+  // Schedule management methods
+  const getSchedules = async (): Promise<Schedule[]> => {
+    try {
+      const res = await fetch(`/api/rooms/${normalizedRoomId}/schedules`);
+      if (res.ok) return await res.json();
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveSchedule = async (schedule: Omit<Schedule, 'id' | 'createdAt'>): Promise<Schedule> => {
+    const res = await fetch(`/api/rooms/${normalizedRoomId}/schedules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': CONTROLLER_API_KEY },
+      body: JSON.stringify(schedule),
+    });
+    if (!res.ok) throw new Error('Failed to save schedule');
+    return res.json();
+  };
+
+  const deleteSchedule = async (id: string): Promise<void> => {
+    const res = await fetch(`/api/rooms/${normalizedRoomId}/schedules/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-api-key': CONTROLLER_API_KEY },
+    });
+    if (!res.ok) throw new Error('Failed to delete schedule');
+  };
+
   const colorStatus: TimerColorStatus = getTimerColorStatus(
     state.remainingSeconds,
     state.themeConfig?.warning1Seconds ?? 60,
@@ -440,7 +487,11 @@ export function useTimerSync(roomId: string = 'main') {
     updateTheme,
     updateChurchLogo,
     updateNdiConfig,
+    setThresholds,
     importState,
+    getSchedules,
+    saveSchedule,
+    deleteSchedule
   };
 }
 
