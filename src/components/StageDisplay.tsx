@@ -137,13 +137,13 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
   const messageActive = Boolean(state.stageMessage && state.stageMessage.active);
   const digitFontSize = isTimeUp
     ? messageActive
-      ? 'clamp(4rem, 12vw, 18rem)'
-      : 'clamp(7rem, 22vw, 30rem)'
+      ? 'clamp(6rem, 20vw, 28rem)'
+      : 'clamp(7rem, 23vw, 32rem)'
     : messageActive
-    ? 'clamp(5rem, 16vw, 22rem)'
+    ? 'clamp(7rem, 26vw, 36rem)'
     : formatted.length > 5
-    ? 'clamp(5rem, 19vw, 30rem)'
-    : 'clamp(8rem, 27vw, 38rem)';
+    ? 'clamp(5rem, 20vw, 32rem)'
+    : 'clamp(8rem, 28vw, 40rem)';
 
   // If Blackout is active
   if (state.isBlackout) {
@@ -270,7 +270,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       </header>
 
       {/* Main Center Stage Area: The Massive Countdown Display */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center my-auto py-4">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center py-2">
         {isTimeUp ? (
           /* Exact user requirement: WHEN THE TIME IS OVER, DISPLAY Time-up in RED */
           <div className="text-center animate-bounce-subtle">
@@ -337,7 +337,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
         {/* Live Stage Message Alert (e.g. from AV director to the stage/pulpit) */}
         {state.stageMessage && state.stageMessage.active && (
           <div
-            className={`mt-4 md:mt-6 max-w-4xl w-full mx-auto px-5 py-3 rounded-xl border flex items-center gap-3 shadow-2xl transition-all ${
+            className={`mt-3 md:mt-5 max-w-4xl w-full mx-auto px-5 py-3 rounded-xl border flex items-center gap-3 shadow-2xl transition-all ${
               state.stageMessage.flash
                 ? 'animate-flash-red text-white'
                 : 'bg-neutral-900 border-neutral-700 text-neutral-100'
