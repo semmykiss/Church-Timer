@@ -231,6 +231,33 @@ function AppShell() {
     } else {
       stageWindowRef.current = newWindow;
       setIsStageWindowOpen(true);
+
+      // Installed PWAs (standalone display mode) IGNORE window.open position/size
+      // features — Chrome places the new app window wherever it likes. Force the
+      // computed second-monitor placement after the fact. moveTo/resizeTo are
+      // permitted cross-window here because the target is same-origin and we are
+      // still inside the user-gesture call stack.
+      // A short retry handles the PWA window finishing its async creation.
+      let attempts = 0;
+      const placeTimer = setInterval(() => {
+        attempts += 1;
+        try {
+          if (newWindow.closed) {
+            clearInterval(placeTimer);
+            return;
+          }
+          // Move first (some engines reset size on move), then size.
+          newWindow.moveTo(left, top);
+          newWindow.resizeTo(width, height);
+          // Verify placement landed; stop retrying once it sticks.
+          if (attempts >= 1 && Math.abs(newWindow.screenX - left) <= 8 && Math.abs(newWindow.screenY - top) <= 8) {
+            clearInterval(placeTimer);
+          }
+        } catch {
+          clearInterval(placeTimer);
+        }
+        if (attempts >= 10) clearInterval(placeTimer);
+      }, 150);
     }
   }, [roomId]);
 
