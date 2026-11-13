@@ -342,22 +342,34 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
           </div>
         )}
 
-        {/* Live Stage Message Alert (e.g. from AV director to the stage/pulpit) */}
+        {/* Live Stage Message Alert — in layout flow (below digits, above footer):
+            it reserves its own space so it can NEVER cover the countdown,
+            the target line, or the footer in any viewport. */}
         {state.stageMessage && state.stageMessage.active && (
           <div
-            className={`mt-3 md:mt-5 max-w-4xl w-full mx-auto px-5 py-3 rounded-xl border flex items-center gap-3 shadow-2xl transition-all ${
+            className={`mt-2 max-w-4xl w-[calc(100%-2rem)] mx-auto px-6 py-4 md:py-5 rounded-2xl border flex items-center justify-center gap-4 shadow-2xl overflow-hidden ${
               state.stageMessage.flash
                 ? 'animate-flash-red text-white'
                 : 'bg-neutral-900 border-neutral-700 text-neutral-100'
             }`}
           >
-            <ShieldAlert className={`w-6 h-6 md:w-7 md:h-7 shrink-0 ${state.stageMessage.flash ? 'text-white' : 'text-amber-400'}`} />
-            <div className="flex-1 min-w-0">
+            <ShieldAlert className={`w-8 h-8 md:w-10 md:h-10 shrink-0 ${state.stageMessage.flash ? 'text-white' : 'text-amber-400'}`} />
+            <div className="text-center min-w-0">
               <div className={`text-[10px] md:text-xs uppercase tracking-wider font-bold ${state.stageMessage.flash ? 'text-white/90' : 'text-amber-400'}`}>
                 Message from Audio-Visual Booth
               </div>
-              <div className="text-base md:text-xl font-bold text-white mt-0.5 truncate">
-                {state.stageMessage.text}
+              <div
+                className={`font-bold text-white mt-1 break-words ${
+                  state.stageMessage.text.length <= 24
+                    ? 'text-2xl md:text-4xl'
+                    : state.stageMessage.text.length <= 48
+                    ? 'text-xl md:text-3xl'
+                    : 'text-lg md:text-2xl'
+                }`}
+              >
+                <span className="line-clamp-2">
+                  {state.stageMessage.text}
+                </span>
               </div>
             </div>
           </div>
