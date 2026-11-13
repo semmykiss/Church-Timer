@@ -128,7 +128,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       ? "'Courier New', monospace"
       : theme.fontFamily === 'sans'
       ? "'Plus Jakarta Sans', sans-serif"
-      : "'JetBrains Mono', monospace";
+      : "'Sora', 'Plus Jakarta Sans', sans-serif";
 
   // Adaptive digit sizing: fill the screen normally, but shrink automatically
   // when a stage message is showing so the pulpit prompt never goes off-screen.
@@ -189,6 +189,14 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
         }}
       />
 
+      {/* Soft Dark Luxe vignette — pulls the eye to the center digits */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)',
+        }}
+      />
+
       {/* Background Watermark Church Logo if configured */}
       {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'watermark' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 select-none scale-150">
@@ -197,7 +205,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       )}
 
       {/* Top Bar: Current Program & Wall Clock */}
-      <header className="relative z-10 flex items-center justify-between border-b border-neutral-800/80 pb-3">
+      <header className="relative z-10 flex items-center justify-between border-b border-neutral-800/50 pb-3">
         {/* Left: Church Logo (if top-left) and Current Church Service Item */}
         <div className="flex items-center gap-4">
           {state.churchLogo?.enabled && state.churchLogo?.showOnStage && state.churchLogo.position === 'top-left' && (
@@ -280,7 +288,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
                 fontSize: digitFontSize,
-                filter: `drop-shadow(0 0 45px ${activeColor}70)`,
+                textShadow: `0 0 18px ${activeColor}55, 0 0 70px ${activeColor}30, 0 30px 90px rgba(0,0,0,.65)`,
               }}
             >
               {theme.timeUpText || 'Time-up'}
@@ -316,7 +324,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
                 color: activeColor,
                 fontFamily: fontFamilyStyle,
                 fontSize: digitFontSize,
-                filter: `drop-shadow(0 0 35px ${activeColor}40)`,
+                textShadow: `0 0 18px ${activeColor}55, 0 0 70px ${activeColor}30, 0 30px 90px rgba(0,0,0,.65)`,
               }}
             >
               {formatted}
@@ -357,7 +365,7 @@ export const StageDisplay: React.FC<StageDisplayProps> = ({
       </main>
 
       {/* Footer / Stage Monitor Indicators */}
-      <footer className="relative z-10 flex items-center justify-between border-t border-neutral-800/80 pt-4 text-xs text-neutral-400">
+      <footer className="relative z-10 flex items-center justify-between border-t border-neutral-800/50 pt-4 text-xs text-neutral-400">
         <div className="flex items-center gap-4">
           <span className="font-semibold text-neutral-300">SanctuaryTimer</span>
           <span>·</span>
